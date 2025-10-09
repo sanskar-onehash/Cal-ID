@@ -4,11 +4,11 @@
   "slug": "skype",
   "type": "skype_conferencing",
   "logo": "icon.svg",
-  "url": "https://github.com/anikdhabal/",
+  "url": "https://cal.id",
   "variant": "conferencing",
   "categories": ["conferencing"],
-  "publisher": "Anik Dhabal Babu",
-  "email": "adhabl2002@gmail.com",
+  "publisher": "Cal ID",
+  "email": "support@cal.id",
   "appData": {
     "location": {
       "type": "integrations:{SLUG}_video",

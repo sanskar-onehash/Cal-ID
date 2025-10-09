@@ -4,11 +4,11 @@
   "slug": "element-call",
   "type": "element-call_conferencing",
   "logo": "icon.svg",
-  "url": "https://github.com/suyash5053/",
+  "url": "https://cal.id",
   "variant": "conferencing",
   "categories": ["conferencing"],
-  "publisher": "Suyash Srivastava",
-  "email": "suyashsrivastava5053@gmail.com",
+  "publisher": "Cal ID",
+  "email": "support@cal.id",
   "appData": {
     "location": {
       "type": "integrations:{SLUG}_video",

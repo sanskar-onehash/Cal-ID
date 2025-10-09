@@ -10,13 +10,13 @@ export const metadata = {
   variant: "conferencing",
   categories: ["video", "conferencing"],
   logo: "icon.svg",
-  publisher: "huddle01.com",
-  url: "https://huddle01.com",
+  publisher: "Cal ID",
+  url: "https://cal.id",
   category: "conferencing",
   slug: "huddle01",
   title: "Huddle01",
   isGlobal: false,
-  email: "support@huddle01.com",
+  email: "support@cal.id",
   appData: {
     location: {
       linkType: "dynamic",

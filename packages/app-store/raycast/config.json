@@ -7,8 +7,8 @@
   "url": "https://github.com/eluce2",
   "variant": "other",
   "categories": ["automation"],
-  "publisher": "Eric Luce",
-  "email": "info@restlessmindstech.com",
+  "publisher": "Cal ID",
+  "email": "support@cal.id",
   "description": "Quickly share your [Cal ID](https://cal.id) meeting links with Raycast",
   "__createdUsingCli": true,
   "isOAuth": false

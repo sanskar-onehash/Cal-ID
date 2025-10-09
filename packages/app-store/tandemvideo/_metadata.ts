@@ -12,7 +12,7 @@ export const metadata = {
   slug: "tandem",
   category: "conferencing",
   logo: "icon.svg",
-  publisher: "",
+  publisher: "Cal ID",
   url: "",
   isGlobal: false,
   email: "support@cal.id",

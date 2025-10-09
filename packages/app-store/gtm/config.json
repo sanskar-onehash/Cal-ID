@@ -6,8 +6,8 @@
   "url": "https://tagmanager.google.com",
   "variant": "analytics",
   "categories": ["analytics"],
-  "publisher": "Black Lemon",
-  "email": "support@blacklemon.dk",
+  "publisher": "Cal ID",
+  "email": "support@cal.id",
   "description": "App to install Google Tag Manager",
   "extendsFeature": "EventType",
   "appData": {

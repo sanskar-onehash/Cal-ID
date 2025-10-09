@@ -4,11 +4,11 @@
   "slug": "roam",
   "type": "roam_conferencing",
   "logo": "icon.png",
-  "url": "https://ro.am",
+  "url": "https://cal.id",
   "variant": "conferencing",
   "categories": ["conferencing"],
-  "publisher": "Roam HQ, Inc.",
-  "email": "support@ro.am",
+  "publisher": "Cal ID",
+  "email": "support@cal.id",
   "appData": {
     "location": {
       "type": "integrations:{SLUG}_video",

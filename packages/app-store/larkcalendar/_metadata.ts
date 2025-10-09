@@ -11,10 +11,10 @@ export const metadata = {
   variant: "calendar",
   categories: ["calendar"],
   logo: "icon.svg",
-  publisher: "Lark",
+  publisher: "Cal ID",
   slug: "lark-calendar",
-  url: "https://larksuite.com/",
-  email: "alan@larksuite.com",
+  url: "https://cal.id",
+  email: "support@cal.id",
   dirName: "larkcalendar",
   isOAuth: true,
 } as AppMeta;
