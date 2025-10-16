@@ -155,9 +155,36 @@ export type CalEventResponses = Record<
   }
 >;
 
-export interface ExistingRecurringEvent {
-  recurringEventId: string;
+// ============================================================================
+// NEW RECURRING BOOKING TYPES - RFC 5545 Recurrence Pattern
+// ============================================================================
+
+/**
+ * Recurrence pattern based on RFC 5545 (iCalendar specification)
+ * This replaces the legacy multi-record recurring booking approach
+ */
+export interface RecurrencePattern {
+  /** iCalendar RRULE string defining the recurrence pattern */
+  RRULE: string;
+  /** Exception rules - dates/patterns to exclude from recurrence */
+  EXRULE?: string | string[];
+  /** Specific dates to include in recurrence */
+  RDATE?: string;
+  /** Specific dates to exclude from recurrence */
+  EXDATE?: string;
 }
+
+/**
+ * Metadata for calendar events, including recurrence information
+ */
+export interface CalendarEventMetadata {
+  /** Recurrence pattern for recurring bookings */
+  recurrencePattern?: RecurrencePattern;
+}
+
+// ============================================================================
+// END NEW RECURRING BOOKING TYPES
+// ============================================================================
 
 // If modifying this interface, probably should update builders/calendarEvent files
 export interface CalendarEvent {
@@ -184,7 +211,6 @@ export interface CalendarEvent {
   conferenceData?: ConferenceData;
   additionalInformation?: AdditionalInformation;
   uid?: string | null;
-  existingRecurringEvent?: ExistingRecurringEvent | null;
   bookingId?: number;
   videoCallData?: VideoCallData;
   paymentInfo?: PaymentInfo | null;
@@ -209,6 +235,9 @@ export interface CalendarEvent {
   disableCancelling?: boolean;
   disableRescheduling?: boolean;
 
+  // NEW: Metadata containing recurrence pattern for RFC 5545-based recurring bookings
+  metadata?: CalendarEventMetadata | null;
+
   // It has responses to all the fields(system + user)
   responses?: CalEventResponses | null;
 
@@ -223,6 +252,9 @@ export interface CalendarEvent {
   domainWideDelegationCredentialId?: string | null;
   customReplyToEmail?: string | null;
   rescheduledBy?: string;
+
+  // NEW: Deletion type for recurring bookings - 'instance' deletes single occurrence, 'series' deletes all
+  deleteType?: "instance" | "series" | null;
 }
 
 export interface EntryPoint {

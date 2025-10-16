@@ -26,6 +26,8 @@ export function getPiiFreeCalendarEvent(calEvent: CalendarEvent) {
     uid: calEvent.uid,
     conferenceCredentialId: calEvent.conferenceCredentialId,
     iCalUID: calEvent.iCalUID,
+    // Include metadata for RFC 5545 recurrence pattern debugging
+    metadata: calEvent.metadata,
     /**
      * Let's just get a boolean value for PII sensitive fields so that we atleast know if it's present or not
      */

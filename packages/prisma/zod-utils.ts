@@ -138,7 +138,6 @@ const _eventTypeMetaDataSchemaWithoutApps = z.object({
 export const eventTypeMetaDataSchemaWithUntypedApps = _eventTypeMetaDataSchemaWithoutApps.merge(
   z.object({
     apps: z.unknown().optional(),
-    // billingAddressRequired: z.boolean().optional(),
   })
 );
 
@@ -308,6 +307,16 @@ export const bookingCancelSchema = z.object({
     .nullable(),
   autoRefund: z.boolean(),
   fromApi: z.boolean().optional().default(false),
+
+  // NEW: RFC 5545 recurrence pattern cancellation fields
+  /** Array of specific booking IDs to cancel (for selecting multiple instances) */
+  selectedBookingIds: z.array(z.number()).optional(),
+  /** Updated EXDATE string to add cancelled dates to recurrence pattern */
+  updatedExdate: z.string().optional(),
+  /** Array of ISO date strings representing cancelled dates */
+  cancelledDates: z.array(z.string()).optional(),
+  /** Controls whether to cancel single instance or entire series */
+  deleteType: z.union([z.literal("series"), z.literal("instance")]).optional(),
 });
 
 export const bookingCancelAttendeeSeatSchema = z.object({
@@ -407,14 +416,50 @@ export const teamMetadataSchema = z
   .partial()
   .nullable();
 
+/**
+ * Schema for RFC 5545 recurrence pattern stored in booking metadata
+ * Supports both string format (for simple cases) and object format (for complex patterns)
+ */
+export const recurrencePatternSchema = z
+  .union([
+    z.string(), // Simple RRULE string
+    z.object({
+      /** iCalendar RRULE string defining the recurrence pattern */
+      RRULE: z.string(),
+      /** Exception rules - patterns to exclude from recurrence */
+      EXRULE: z.string().optional(),
+      /** Specific dates to include in recurrence (RFC 5545 format) */
+      RDATE: z.string().optional(),
+      /** Specific dates to exclude from recurrence (RFC 5545 format) */
+      EXDATE: z.string().optional(),
+      /** Start date for the recurrence pattern (RFC 5545 format) */
+      DTSTART: z.string().optional(),
+    }),
+  ])
+  .optional()
+  .nullable();
+
+/**
+ * Booking metadata schema with recurrence pattern support
+ * This replaces the legacy multi-record recurring booking approach
+ */
 export const bookingMetadataSchema = z
   .object({
     videoCallUrl: z.string().optional(),
     meetingNote: z.string().optional(),
+    /** Flag to indicate if booking was imported from external calendar */
+    isImported: z.string().optional(),
+    /** RFC 5545 recurrence pattern for recurring bookings */
+    recurrencePattern: recurrencePatternSchema,
+    /** Flag to indicate if this is an external event */
+    isExternalEvent: z.boolean().optional(),
   })
-  .and(z.record(z.string()))
+  .and(z.record(z.union([z.string(), z.boolean(), z.record(z.any())])))
   .nullable()
   .describe("BookingMetadata");
+// ============================================================================
+// END BOOKING METADATA SCHEMA
+// ============================================================================
 
 export const customInputOptionSchema = z.array(
   z.object({

@@ -1,5 +1,5 @@
 // `responses` is merged with it during handleNewBooking call because `responses` schema is dynamic and depends on eventType
-import z, { ZodNullable, ZodObject, ZodOptional } from "zod";
+import z from "zod";
 import { timeZoneSchema } from "@calcom/lib/dayjs/timeZone.schema";
 // TODO: Move this out of here. Importing from app-store is a circular package dependency.
 import { routingFormResponseInDbSchema } from "@calcom/app-store/routing-forms/zod";
@@ -16,7 +16,8 @@ export const bookingCreateBodySchema = z.object({
   user: z.union([z.string(), z.array(z.string())]).optional(),
   language: z.string(),
   bookingUid: z.string().optional(),
-  metadata: z.record(z.string()),
+  // Updated to support nested objects for recurrence pattern
+  metadata: z.record(z.union([z.string(), z.record(z.any())])),
   hasHashedBookingLink: z.boolean().optional(),
   hashedLink: z.string().nullish(),
   seatReferenceUid: z.string().optional(),
@@ -40,14 +41,16 @@ export const bookingCreateBodySchema = z.object({
   _isDryRun: z.boolean().optional(),
   /** Whether to override the cache */
   _shouldServeCache: z.boolean().optional(),
-  tracking: z.object({
-    utm_source: z.string().optional(),
-    utm_medium: z.string().optional(),
-    utm_campaign: z.string().optional(),
-    utm_term: z.string().optional(),
-    utm_content: z.string().optional(),
-  }).optional(),
-  dub_id: z.string().nullish()
+  tracking: z
+    .object({
+      utm_source: z.string().optional(),
+      utm_medium: z.string().optional(),
+      utm_campaign: z.string().optional(),
+      utm_term: z.string().optional(),
+      utm_content: z.string().optional(),
+    })
+    .optional(),
+  dub_id: z.string().nullish(),
 });
 
 export type BookingCreateBody = z.input<typeof bookingCreateBodySchema>;
