@@ -48,6 +48,8 @@ const _getBookingData = async <T extends z.ZodType>({
       smsReminderNumber: reqBodyWithLegacyProps.smsReminderNumber,
       notes: reqBodyWithLegacyProps.notes,
       rescheduleReason: reqBodyWithLegacyProps.rescheduleReason,
+      // RFC 5545: Pass through originalOccurrenceDate for rescheduling specific recurring instances
+      originalOccurrenceDate: reqBody.originalOccurrenceDate,
       // So TS doesn't complain about unknown properties
       calEventUserFieldsResponses: undefined,
       calEventResponses: undefined,
@@ -77,6 +79,8 @@ const _getBookingData = async <T extends z.ZodType>({
     notes: responses.notes || "",
     calEventUserFieldsResponses,
     rescheduleReason: responses.rescheduleReason,
+    // RFC 5545: Pass through originalOccurrenceDate for rescheduling specific recurring instances
+    originalOccurrenceDate: reqBody.originalOccurrenceDate,
     calEventResponses,
     // So TS doesn't complain about unknown properties
     customInputs: undefined,

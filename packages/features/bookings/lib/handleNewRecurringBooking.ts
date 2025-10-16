@@ -1,3 +1,5 @@
+import { getRecurrenceObjFromString } from "@calid/features/modules/teams/lib/recurrenceUtil";
+
 import handleNewBooking from "@calcom/features/bookings/lib/handleNewBooking";
 import type { BookingResponse } from "@calcom/features/bookings/types";
 import { SchedulingType } from "@calcom/prisma/client";
@@ -24,21 +26,33 @@ export type BookingHandlerInput = {
 export const handleNewRecurringBooking = async (input: BookingHandlerInput): Promise<BookingResponse[]> => {
   const data = input.bookingData;
   const createdBookings: BookingResponse[] = [];
+
   const allRecurringDates: { start: string | undefined; end: string | undefined }[] = data.map((booking) => {
     return { start: booking.start, end: booking.end };
   });
+
   const appsStatus: AppsStatus[] | undefined = undefined;
-
   const numSlotsToCheckForAvailability = 1;
-
   let thirdPartyRecurringEventId = null;
 
-  // for round robin, the first slot needs to be handled first to define the lucky user
+  // The first booking contains the pattern and metadata
   const firstBooking = data[0];
+
+  // ============================================================================
+  // Parse and validate recurrence pattern
+  // ============================================================================
+  const parsedRecurrencePattern = getRecurrenceObjFromString(firstBooking.metadata?.recurrencePattern);
+
+  if (!parsedRecurrencePattern || Object.keys(parsedRecurrencePattern).length === 0) {
+    throw new Error(
+      "Invalid or missing recurrence pattern. Pattern-based recurring bookings require a valid RFC 5545 recurrence pattern in metadata."
+    );
+  }
+
   const isRoundRobin = firstBooking.schedulingType === SchedulingType.ROUND_ROBIN;
+  let luckyUsers;
 
-  let luckyUsers = undefined;
-
+  // Metadata for booking handler
   const handleBookingMeta = {
     userId: input.userId,
     platformClientId: input.platformClientId,
@@ -49,80 +63,76 @@ export const handleNewRecurringBooking = async (input: BookingHandlerInput): Pro
     areCalendarEventsEnabled: input.areCalendarEventsEnabled,
   };
 
-  if (isRoundRobin) {
-    const recurringEventData = {
-      ...firstBooking,
-      appsStatus,
-      allRecurringDates,
-      isFirstRecurringSlot: true,
-      thirdPartyRecurringEventId,
-      numSlotsToCheckForAvailability,
-      currentRecurringIndex: 0,
-      noEmail: input.noEmail !== undefined ? input.noEmail : false,
-    };
+  // ============================================================================
+  // Build booking request with recurrence pattern
+  // ============================================================================
+  const bookingReq = {
+    ...firstBooking,
+    metadata: {
+      ...(firstBooking.metadata ?? {}),
+      recurrencePattern: parsedRecurrencePattern,
+    },
+    appsStatus,
+    allRecurringDates,
+    isFirstRecurringSlot: true,
+    thirdPartyRecurringEventId,
+    numSlotsToCheckForAvailability,
+    currentRecurringIndex: 0,
+    noEmail: input.noEmail ?? false,
+    luckyUsers,
+  };
 
-    const firstBookingResult = await handleNewBooking({
-      bookingData: recurringEventData,
+  // ============================================================================
+  // Round Robin: Dry run to determine lucky user
+  // ============================================================================
+  // For round robin events, we need to determine which team member gets assigned
+  // to the recurring series before creating the actual booking
+  if (isRoundRobin) {
+    const dryRunResult = await handleNewBooking({
+      bookingData: { ...bookingReq, _isDryRun: true },
       hostname: input.hostname || "",
       forcedSlug: input.forcedSlug as string | undefined,
       ...handleBookingMeta,
     });
-    luckyUsers = firstBookingResult.luckyUsers;
+
+    luckyUsers = dryRunResult.luckyUsers;
+    bookingReq.luckyUsers = luckyUsers;
   }
 
-  for (let key = isRoundRobin ? 1 : 0; key < data.length; key++) {
-    const booking = data[key];
-    // Disable AppStatus in Recurring Booking Email as it requires us to iterate backwards to be able to compute the AppsStatus for all the bookings except the very first slot and then send that slot's email with statuses
-    // It is also doubtful that how useful is to have the AppsStatus of all the bookings in the email.
-    // It is more important to iterate forward and check for conflicts for only first few bookings defined by 'numSlotsToCheckForAvailability'
-    // if (key === 0) {
-    //   const calcAppsStatus: { [key: string]: AppsStatus } = createdBookings
-    //     .flatMap((book) => (book.appsStatus !== undefined ? book.appsStatus : []))
-    //     .reduce((prev, curr) => {
-    //       if (prev[curr.type]) {
-    //         prev[curr.type].failures += curr.failures;
-    //         prev[curr.type].success += curr.success;
-    //       } else {
-    //         prev[curr.type] = curr;
-    //       }
-    //       return prev;
-    //     }, {} as { [key: string]: AppsStatus });
-    //   appsStatus = Object.values(calcAppsStatus);
-    // }
+  // ============================================================================
+  // Create the single booking with recurrence pattern
+  // ============================================================================
+  const finalBooking = await handleNewBooking({
+    bookingData: bookingReq,
+    hostname: input.hostname || "",
+    forcedSlug: input.forcedSlug as string | undefined,
+    ...handleBookingMeta,
+  });
 
-    const recurringEventData = {
-      ...booking,
-      appsStatus,
-      allRecurringDates,
-      isFirstRecurringSlot: key == 0,
-      thirdPartyRecurringEventId,
-      numSlotsToCheckForAvailability,
-      currentRecurringIndex: key,
-      noEmail: input.noEmail !== undefined ? input.noEmail : key !== 0,
-      luckyUsers,
-    };
+  createdBookings.push(finalBooking);
 
-    const promiseEachRecurringBooking: ReturnType<typeof handleNewBooking> = handleNewBooking({
-      hostname: input.hostname || "",
-      forcedSlug: input.forcedSlug as string | undefined,
-      bookingData: recurringEventData,
-      ...handleBookingMeta,
-    });
-
-    const eachRecurringBooking = await promiseEachRecurringBooking;
-
-    createdBookings.push(eachRecurringBooking);
-
-    if (!thirdPartyRecurringEventId) {
-      if (eachRecurringBooking.references && eachRecurringBooking.references.length > 0) {
-        for (const reference of eachRecurringBooking.references!) {
-          if (reference.thirdPartyRecurringEventId) {
-            thirdPartyRecurringEventId = reference.thirdPartyRecurringEventId;
-            break;
-          }
-        }
+  // ============================================================================
+  // Extract third-party recurring event ID (e.g., Google Calendar recurring ID)
+  // ============================================================================
+  if (!thirdPartyRecurringEventId && finalBooking.references && finalBooking.references.length > 0) {
+    for (const reference of finalBooking.references) {
+      if (reference.thirdPartyRecurringEventId) {
+        thirdPartyRecurringEventId = reference.thirdPartyRecurringEventId;
+        break;
       }
     }
   }
+
+  // ============================================================================
+  // Return immediately with single booking record
+  // ============================================================================
+  // IMPORTANT: Unlike the old approach which created N booking records,
+  // we return immediately with just ONE booking record that contains the
+  // recurrence pattern in its metadata.
+  //
+  // The pattern defines all occurrences:
+  // - RRULE: Base recurrence rule
+  // - EXDATE: Cancelled instances
+  // - RDATE: Additional/rescheduled instances
   return createdBookings;
 };

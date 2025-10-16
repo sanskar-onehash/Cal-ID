@@ -1,3 +1,4 @@
+import type { RecurrencePattern } from "@calid/features/modules/teams/lib/recurrenceUtil";
 import type { CalIdWorkflow } from "@calid/features/modules/workflows/config/types";
 import {
   canDisableParticipantNotifications,
@@ -449,6 +450,7 @@ async function handler(
     notes: additionalNotes,
     smsReminderNumber,
     rescheduleReason,
+    originalOccurrenceDate, //passing the original date to be rescheduled
     luckyUsers,
     routedTeamMemberIds,
     reroutingFormResponses,
@@ -497,7 +499,7 @@ async function handler(
   const rescheduleUid = bookingSeat ? bookingSeat.booking.uid : reqBody.rescheduleUid;
 
   let originalRescheduledBooking = rescheduleUid
-    ? await getOriginalRescheduledBooking(rescheduleUid, !!eventType.seatsPerTimeSlot)
+    ? await getOriginalRescheduledBooking(rescheduleUid, !!eventType.seatsPerTimeSlot, originalOccurrenceDate)
     : null;
 
   const paymentAppData = getPaymentAppData({
@@ -1072,7 +1074,8 @@ async function handler(
     eventType: eventType.title,
     eventName: evtName,
     // we send on behalf of team if >1 round robin attendee | collective
-    teamName: eventType.schedulingType === "COLLECTIVE" || users.length > 1 ? eventType.calIdTeam?.name : null,
+    teamName:
+      eventType.schedulingType === "COLLECTIVE" || users.length > 1 ? eventType.calIdTeam?.name : null,
     // TODO: Can we have an unnamed organizer? If not, I would really like to throw an error here.
     host: organizerUser.name || "Nameless",
     location: bookingLocation,
@@ -1324,7 +1327,12 @@ async function handler(
     }
   }
 
-  if (reqBody.recurringEventId && eventType.recurringEvent) {
+  //passing recurringEvent to evt
+  if (reqBody.metadata?.recurrencePattern) {
+    // Use new recurrence pattern format
+    if (!evt.metadata) evt.metadata = {};
+    evt.metadata.recurrencePattern = reqBody.metadata.recurrencePattern as RecurrencePattern;
+  } else if (reqBody.recurringEventId && eventType.recurringEvent) {
     // Overriding the recurring event configuration count to be the actual number of events booked for
     // the recurring event (equal or less than recurring event configuration count)
     eventType.recurringEvent = Object.assign({}, eventType.recurringEvent, { count: recurringCount });
@@ -1381,8 +1389,11 @@ async function handler(
         reroutingFormResponses: reroutingFormResponses ?? null,
         reqBody: {
           user: reqBody.user,
-          metadata: reqBody.metadata,
-          recurringEventId: reqBody.recurringEventId,
+          metadata: {
+            ...reqBody.metadata, //passing recurrencePattern inside metadata to create Booking
+            originalOccurrenceDate: originalOccurrenceDate, //passing for reference to reschdule instance
+          },
+          recurringEventId: reqBody.metadata?.recurrencePattern ? undefined : reqBody.recurringEventId,
         },
         eventType: {
           eventTypeData: eventType,
@@ -1524,7 +1535,21 @@ async function handler(
     log.silly("Rescheduling booking", originalRescheduledBooking.uid);
     // cancel workflow reminders from previous rescheduled booking
     await WorkflowRepository.deleteAllWorkflowReminders(originalRescheduledBooking.workflowReminders);
-
+    // updating the metadata with new recurrencePattern (RDATE,EXDATE) coming from frontend
+    const singleOccurrence =
+      (originalRescheduledBooking.metadata as any)?.recurrencePattern && originalOccurrenceDate;
+    if (singleOccurrence) {
+      console.log("Handling single occurrence reschedule - updating recurrence pattern only");
+      await prisma.booking.update({
+        where: { uid: originalRescheduledBooking.uid },
+        data: {
+          metadata: {
+            ...((originalRescheduledBooking.metadata as any) || {}),
+            recurrencePattern: reqBody.metadata.recurrencePattern,
+          },
+        },
+      });
+    }
     evt = addVideoCallDataToEvent(originalRescheduledBooking.references, evt);
     evt.rescheduledBy = reqBody.rescheduledBy;
 

@@ -138,8 +138,37 @@ async function saveBooking(
   paymentAppData: PaymentAppData,
   organizerUser: CreateBookingParams["eventType"]["organizerUser"]
 ) {
-  const { newBookingData, reroutingFormResponseUpdateData, originalBookingUpdateDataForCancellation } =
-    bookingAndAssociatedData;
+  const {
+    newBookingData,
+    reroutingFormResponseUpdateData,
+    originalBookingUpdateDataForCancellation,
+    singleOccurrenceUpdateData,
+  } = bookingAndAssociatedData;
+
+  //  Handle single occurrence reschedule for pattern-based recurring bookings
+  if (singleOccurrenceUpdateData) {
+    return prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.update({
+        where: singleOccurrenceUpdateData.where,
+        data: singleOccurrenceUpdateData.data,
+        include: {
+          user: {
+            select: { email: true, name: true, timeZone: true, username: true },
+          },
+          attendees: true,
+          payment: true,
+          references: true,
+        },
+      });
+
+      if (reroutingFormResponseUpdateData) {
+        await tx.app_RoutingForms_FormResponse.update(reroutingFormResponseUpdateData);
+      }
+
+      return booking;
+    });
+  }
+
   const createBookingObj = {
     include: {
       user: {
@@ -219,6 +248,71 @@ function buildNewBookingData(params: CreateBookingParams) {
     tracking,
   } = params;
 
+  //  Check if this is a single occurrence reschedule for pattern-based recurring booking
+  const isSingleOccurrenceReschedule = originalRescheduledBooking && reqBody.metadata?.originalOccurrenceDate;
+
+  if (isSingleOccurrenceReschedule) {
+    //  For single occurrence reschedule, update the existing booking's metadata
+    // This adds the old date to EXDATE and new date to RDATE
+    return {
+      newBookingData: null as any, // Not creating a new booking
+      reroutingFormResponseUpdateData: getReroutingFormResponseUpdateData({
+        reroutingFormResponses,
+        routingFormResponseId,
+      }),
+      originalBookingUpdateDataForCancellation: null, // Don't cancel the master booking
+      singleOccurrenceUpdateData: {
+        where: { id: originalRescheduledBooking.id },
+        data: {
+          // Keep original startTime/endTime (master booking times)
+          // The pattern in metadata determines actual occurrence times
+
+          // Update metadata while preserving recurrence pattern
+          metadata: {
+            ...(typeof originalRescheduledBooking.metadata === "object" &&
+              originalRescheduledBooking.metadata),
+            // Filter out originalOccurrenceDate - it's only for processing
+            ...Object.fromEntries(
+              Object.entries(reqBody.metadata || {}).filter(([key]) => key !== "originalOccurrenceDate")
+            ),
+          },
+
+          // Update other booking details
+          location: evt.location,
+          title: evt.title,
+          description: evt.additionalNotes || originalRescheduledBooking.description,
+          cancellationReason: input.rescheduleReason,
+          fromReschedule: originalRescheduledBooking.uid,
+          rescheduled: true,
+
+          // Optional updates
+          ...(evt.customInputs !== undefined && {
+            customInputs: isPrismaObjOrUndefined(evt.customInputs),
+          }),
+
+          ...(input.responses !== null &&
+            input.responses !== undefined && {
+              responses: input.responses === null ? Prisma.JsonNull : input.responses,
+            }),
+
+          ...(input.smsReminderNumber !== undefined && {
+            smsReminderNumber: input.smsReminderNumber,
+          }),
+
+          ...(rescheduledBy && { rescheduledBy: rescheduledBy }),
+
+          // Keep status or update based on confirmation setting
+          status: eventType.isConfirmedByDefault
+            ? BookingStatus.ACCEPTED
+            : originalRescheduledBooking.status === BookingStatus.ACCEPTED
+            ? BookingStatus.ACCEPTED
+            : BookingStatus.PENDING,
+        } satisfies Prisma.BookingUpdateInput,
+      },
+    };
+  }
+
+  // ⭐ Standard booking creation (non-recurring or master recurring booking)
   const attendeesData = getAttendeesData(evt);
   const eventTypeRel = getEventTypeRel(eventType.id);
   const reroutingFormResponseUpdateData = getReroutingFormResponseUpdateData({
@@ -240,7 +334,10 @@ function buildNewBookingData(params: CreateBookingParams) {
     location: evt.location,
     eventType: eventTypeRel,
     smsReminderNumber: input.smsReminderNumber,
+
+    // Metadata includes recurrence pattern for pattern-based recurring bookings
     metadata: reqBody.metadata,
+
     attendees: {
       createMany: {
         data: attendeesData,
@@ -268,22 +365,28 @@ function buildNewBookingData(params: CreateBookingParams) {
     tracking: tracking ? { create: tracking } : undefined,
   };
 
-  if (reqBody.recurringEventId) {
-    newBookingData.recurringEventId = reqBody.recurringEventId;
-  }
+  //  REMOVED: No more recurringEventId support
+  // if (reqBody.recurringEventId) {
+  //   newBookingData.recurringEventId = reqBody.recurringEventId;
+  // }
+  //  Pattern-based recurring bookings use metadata.recurrencePattern instead
 
   let originalBookingUpdateDataForCancellation: Prisma.BookingUpdateArgs | undefined = undefined;
 
   if (originalRescheduledBooking) {
+    // Merge metadata from original booking
     newBookingData.metadata = {
       ...(typeof originalRescheduledBooking.metadata === "object" && originalRescheduledBooking.metadata),
       ...reqBody.metadata,
     };
+
     newBookingData.paid = originalRescheduledBooking.paid;
     newBookingData.fromReschedule = originalRescheduledBooking.uid;
+
     if (originalRescheduledBooking.uid) {
       newBookingData.cancellationReason = input.rescheduleReason;
     }
+
     // Reschedule logic with booking with seats
     if (
       newBookingData.attendees?.createMany?.data &&
@@ -295,10 +398,12 @@ function buildNewBookingData(params: CreateBookingParams) {
       );
     }
 
-    if (originalRescheduledBooking.recurringEventId) {
-      newBookingData.recurringEventId = originalRescheduledBooking.recurringEventId;
-    }
+    //  REMOVED: No more recurringEventId inheritance
+    // if (originalRescheduledBooking.recurringEventId) {
+    //   newBookingData.recurringEventId = originalRescheduledBooking.recurringEventId;
+    // }
 
+    // Cancel original booking when rescheduling entire booking (not single occurrence)
     if (!evt.seatsPerTimeSlot && originalRescheduledBooking?.uid) {
       originalBookingUpdateDataForCancellation = {
         where: {
@@ -317,6 +422,7 @@ function buildNewBookingData(params: CreateBookingParams) {
     newBookingData,
     reroutingFormResponseUpdateData,
     originalBookingUpdateDataForCancellation,
+    singleOccurrenceUpdateData: null,
   };
 
   function getReroutingFormResponseUpdateData({
