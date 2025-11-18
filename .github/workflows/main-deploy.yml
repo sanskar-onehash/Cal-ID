@@ -55,7 +55,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force
           sudo docker builder prune -a
-          
+
       - run: df -h
 
       - name: Initialize Global Log File
@@ -225,7 +225,7 @@ jobs:
       - name: Login to Amazon ECR
         if: ${{ steps.configure-aws.outcome == 'success' }}
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
         continue-on-error: true
 
       - name: Check ECR login status
