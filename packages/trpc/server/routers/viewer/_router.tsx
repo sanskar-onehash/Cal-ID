@@ -41,7 +41,6 @@ import { ssoRouter } from "./sso/_router";
 import { viewerTeamsRouter } from "./teams/_router";
 import { travelSchedulesRouter } from "./travelSchedules/_router";
 import { webhookRouter } from "./webhook/_router";
-import { whatsappBusinessRouter } from "./whatsappBusiness/_router";
 import { workflowsRouter } from "./workflows/_router";
 
 export const viewerRouter = router({
@@ -65,7 +64,6 @@ export const viewerRouter = router({
   apiKeys: apiKeysRouter,
   slots: slotsRouter,
   workflows: workflowsRouter,
-  whatsappBusiness: whatsappBusinessRouter,
   saml: ssoRouter,
   dsync: dsyncRouter,
   i18n: i18nRouter,
