@@ -682,6 +682,21 @@ async function addWorkflowsToDb(workflows: InputWorkflow[]) {
         },
       });
 
+      const createdCalIdWorkflow = await prismock.calIdWorkflow.create({
+        data: {
+          ...(workflow.id && { id: workflow.id }),
+          userId: workflow.userId,
+          calIdTeamId: workflow.teamId ?? null,
+          trigger: workflow.trigger,
+          name: workflow.name ? workflow.name : "Test Workflow",
+          time: workflow.time,
+          timeUnit: workflow.timeUnit,
+        },
+        include: {
+          steps: true,
+        },
+      });
+
       await prismock.workflowStep.create({
         data: {
           stepNumber: 1,
@@ -693,6 +708,23 @@ async function addWorkflowsToDb(workflows: InputWorkflow[]) {
           workflow: {
             connect: {
               id: createdWorkflow.id,
+            },
+          },
+          verifiedAt: workflow?.verifiedAt ?? new Date(),
+        },
+      });
+
+      await prismock.calIdWorkflowStep.create({
+        data: {
+          stepNumber: 1,
+          action: workflow.action,
+          template: workflow.template,
+          numberVerificationPending: false,
+          includeCalendarEvent: false,
+          sendTo: workflow.sendTo,
+          workflow: {
+            connect: {
+              id: createdCalIdWorkflow.id,
             },
           },
           verifiedAt: workflow?.verifiedAt ?? new Date(),
@@ -711,12 +743,32 @@ async function addWorkflowsToDb(workflows: InputWorkflow[]) {
             })
           )
         );
+        await Promise.all(
+          workflow.activeOnTeams.map((id) =>
+            prismock.calIdWorkflowsOnTeams.create({
+              data: {
+                workflowId: createdCalIdWorkflow.id,
+                calIdTeamId: id,
+              },
+            })
+          )
+        );
       } else if (workflow.activeOn) {
         await Promise.all(
           workflow.activeOn.map((id) =>
             prismock.workflowsOnEventTypes.create({
               data: {
                 workflowId: createdWorkflow.id,
+                eventTypeId: id,
+              },
+            })
+          )
+        );
+        await Promise.all(
+          workflow.activeOn.map((id) =>
+            prismock.calIdWorkflowsOnEventTypes.create({
+              data: {
+                workflowId: createdCalIdWorkflow.id,
                 eventTypeId: id,
               },
             })
@@ -1517,7 +1569,7 @@ export function getOrganizer({
     credentials,
     selectedCalendars,
     destinationCalendar,
-    defaultScheduleId,
+    defaultScheduleId: defaultScheduleId ?? (schedules?.length ? 1 : null),
     weekStart,
     teams,
     organizationId,

@@ -19,4 +19,5 @@ function setEnvVariablesThatAreUsedBeforeSetup() {
   // With same env variable, we can test both non org and org booking scenarios
   process.env.NEXT_PUBLIC_WEBAPP_URL = "http://app.cal.local:3000";
   process.env.CALCOM_SERVICE_ACCOUNT_ENCRYPTION_KEY = "UNIT_TEST_ENCRYPTION_KEY";
+  process.env.USE_BULLMQ = "false";
 }

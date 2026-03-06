@@ -5,6 +5,7 @@ import type * as constants from "@calcom/lib/constants";
 const initialConstants = {
   IS_PRODUCTION: false,
   IS_TEAM_BILLING_ENABLED: false,
+  WEBAPP_URL: "http://localhost:3000",
   WEBSITE_URL: "",
   PUBLIC_INVALIDATE_AVAILABLE_SLOTS_ON_BOOKING_FORM: true,
   CLOUDFLARE_SITE_ID: "test-site-id",
@@ -18,6 +19,10 @@ const initialConstants = {
   SEO_IMG_LOGO: "https://cal.com/logo.png",
   CURRENT_TIMEZONE: "Europe/London",
   APP_NAME: "Cal.com",
+  WHATSAPP_REMINDER_SID: "",
+  WHATSAPP_CANCELLED_SID: "",
+  WHATSAPP_RESCHEDULED_SID: "",
+  WHATSAPP_COMPLETED_SID: "",
   BOOKER_NUMBER_OF_DAYS_TO_LOAD: 14,
   PUBLIC_QUICK_AVAILABILITY_ROLLOUT: 100,
   SINGLE_ORG_SLUG: "",

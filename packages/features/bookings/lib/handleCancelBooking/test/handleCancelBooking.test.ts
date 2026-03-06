@@ -88,6 +88,13 @@ describe("Cancel Booking", () => {
             metadata: {
               videoCallUrl: "https://existing-daily-video-call-url.example.com",
             },
+            attendees: [
+              {
+                email: booker.email,
+                timeZone: "Asia/Kolkata",
+                locale: "en",
+              },
+            ],
           },
         ],
         organizer,
@@ -114,6 +121,7 @@ describe("Cancel Booking", () => {
         id: idOfBookingToBeCancelled,
         uid: uidOfBookingToBeCancelled,
         cancelledBy: organizer.email,
+        autoRefund: false,
       },
     });
 
@@ -123,7 +131,6 @@ describe("Cancel Booking", () => {
       location: BookingLocations.CalVideo,
       subscriberUrl: "http://my-webhook.example.com",
       payload: {
-        cancelledBy: organizer.email,
         organizer: {
           id: organizer.id,
           username: organizer.username,
@@ -241,6 +248,7 @@ describe("Cancel Booking", () => {
         id: idOfBookingToBeCancelled,
         uid: uidOfBookingToBeCancelled,
         cancelledBy: organizer.email,
+        autoRefund: false,
       },
     });
 
@@ -250,7 +258,6 @@ describe("Cancel Booking", () => {
       location: BookingLocations.CalVideo,
       subscriberUrl: "http://my-webhook.example.com",
       payload: {
-        cancelledBy: organizer.email,
         organizer: {
           id: organizer.id,
           username: organizer.username,
@@ -394,6 +401,7 @@ describe("Cancel Booking", () => {
         id: idOfBookingToBeCancelled,
         uid: uidOfBookingToBeCancelled,
         cancelledBy: organizer.email,
+        autoRefund: false,
         cancellationReason: "Testing round robin cancellation with host as attendee",
       },
     });
@@ -409,7 +417,6 @@ describe("Cancel Booking", () => {
       location: BookingLocations.CalVideo,
       subscriberUrl: "http://my-webhook.example.com",
       payload: {
-        cancelledBy: organizer.email,
         organizer: {
           id: organizer.id,
           username: organizer.username,

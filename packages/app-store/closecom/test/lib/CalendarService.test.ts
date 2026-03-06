@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { expect, vi, afterEach, test } from "vitest";
+import { expect, vi, afterEach, beforeEach, test } from "vitest";
 
 import CloseCom from "@calcom/lib/CloseCom";
 import {
@@ -22,12 +22,26 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+beforeEach(() => {
+  CloseCom.prototype.lead = {
+    list: () => ({ data: [] }),
+    create: () => ({ id: "lead-default" }),
+  } as any;
+  CloseCom.prototype.customActivity = {
+    type: {
+      get: () => ({ data: [] }),
+      create: () => ({ id: "type-default" }),
+    },
+  } as any;
+});
+
 // getCloseComLeadId
 test("check generic lead generator: already exists", async () => {
   CloseCom.prototype.lead = {
     list: () => ({
       data: [{ name: "From Cal.com", id: "abc" }],
     }),
+    create: () => ({ id: "abc" }),
   } as any;
 
   const closeCom = new CloseCom("someKey");
@@ -134,6 +148,7 @@ test("retrieve custom fields for custom activity type: type exists, no field cre
   CloseCom.prototype.customActivity = {
     type: {
       get: () => ({ data: [{ id: "typeX", name: "Cal.com Activity" }] }),
+      create: () => ({ id: "typeX" }),
     },
   } as any;
 
@@ -155,7 +170,7 @@ test("retrieve custom fields for custom activity type: type exists, no field cre
   );
   expect(contactIds).toEqual({
     activityType: "typeX",
-    fields: ["fieldY", "field11D", "field9T"],
+    fields: ["field9A", "field11D", "field9T"],
   });
 });
 
@@ -253,6 +268,7 @@ test("prepare data to create custom activity type instance: one attendees, with 
     list: () => ({
       data: [{ name: "From Cal.com", id: "abc" }],
     }),
+    create: () => ({ id: "abc" }),
   } as any;
 
   const closeCom = new CloseCom("someKey");

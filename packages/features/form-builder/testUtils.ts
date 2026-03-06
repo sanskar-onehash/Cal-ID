@@ -21,6 +21,7 @@ export const mockProps: FormBuilderProps = {
   disabled: false,
   LockedIcon: false,
   dataStore: { options: {} },
+  workflows: [],
 };
 export const getLocationBookingField = () => {
   const bookingFields = getBookingFieldsWithSystemFields({
@@ -159,7 +160,14 @@ export const pageObject = {
       }
     },
     close: ({ dialog }: { dialog: TestingLibraryElement }) => {
-      fireEvent.click(dialog.getByTestId("dialog-rejection"));
+      const closeButton =
+        dialog.queryByTestId("dialog-rejection") ??
+        dialog.queryByRole("button", { name: /cancel/i }) ??
+        dialog.queryByRole("button", { name: /close/i });
+      if (!closeButton) {
+        throw new Error("Dialog close button not found");
+      }
+      fireEvent.click(closeButton);
     },
   },
   queryDeleteButton: ({ identifier }: { identifier: string }) => {

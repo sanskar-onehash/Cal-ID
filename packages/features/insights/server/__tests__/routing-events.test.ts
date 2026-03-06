@@ -6,10 +6,7 @@ import { RoutingEventsInsights } from "../routing-events";
 
 vi.mock("@calcom/prisma", () => ({
   readonlyPrisma: {
-    team: {
-      findMany: vi.fn(),
-    },
-    membership: {
+    calIdMembership: {
       findMany: vi.fn(),
     },
   },
@@ -35,9 +32,6 @@ describe("RoutingEventsInsights", () => {
   describe("getWhereForTeamOrAllTeams", () => {
     describe("Basic filtering scenarios", () => {
       it("should return correct where condition when isAll is true with organizationId", async () => {
-        vi.mocked(readonlyPrisma.team.findMany).mockResolvedValue([{ id: 1 }, { id: 2 }]);
-        vi.mocked(readonlyPrisma.membership.findMany).mockResolvedValue([{ teamId: 1 }, { teamId: 2 }]);
-
         const result = await TestRoutingEventsInsights.testGetWhereForTeamOrAllTeams({
           userId: 1,
           isAll: true,
@@ -45,14 +39,13 @@ describe("RoutingEventsInsights", () => {
         });
 
         expect(result).toEqual({
-          teamId: {
-            in: [1, 2],
-          },
+          userId: 1,
+          calIdTeamId: null,
         });
       });
 
       it("should return correct where condition when teamId is provided", async () => {
-        vi.mocked(readonlyPrisma.membership.findMany).mockResolvedValue([{ teamId: 5 }]);
+        vi.mocked(readonlyPrisma.calIdMembership.findMany).mockResolvedValue([{ calIdTeamId: 5 }]);
 
         const result = await TestRoutingEventsInsights.testGetWhereForTeamOrAllTeams({
           userId: 1,
@@ -61,7 +54,7 @@ describe("RoutingEventsInsights", () => {
         });
 
         expect(result).toEqual({
-          teamId: {
+          calIdTeamId: {
             in: [5],
           },
         });
@@ -75,15 +68,14 @@ describe("RoutingEventsInsights", () => {
 
         expect(result).toEqual({
           userId: 1,
-          teamId: null,
+          calIdTeamId: null,
         });
       });
     });
 
     describe("Edge cases", () => {
       it("should return correct where condition when user has no access to teams", async () => {
-        vi.mocked(readonlyPrisma.team.findMany).mockResolvedValue([{ id: 2 }, { id: 3 }]);
-        vi.mocked(readonlyPrisma.membership.findMany).mockResolvedValue([]);
+        vi.mocked(readonlyPrisma.calIdMembership.findMany).mockResolvedValue([]);
 
         const result = await TestRoutingEventsInsights.testGetWhereForTeamOrAllTeams({
           userId: 1,
@@ -93,12 +85,12 @@ describe("RoutingEventsInsights", () => {
 
         expect(result).toEqual({
           userId: 1,
-          teamId: null,
+          calIdTeamId: null,
         });
       });
 
       it("should return correct where condition when routingFormId is provided", async () => {
-        vi.mocked(readonlyPrisma.membership.findMany).mockResolvedValue([{ teamId: 5 }]);
+        vi.mocked(readonlyPrisma.calIdMembership.findMany).mockResolvedValue([{ calIdTeamId: 5 }]);
 
         const result = await TestRoutingEventsInsights.testGetWhereForTeamOrAllTeams({
           userId: 1,
@@ -108,7 +100,7 @@ describe("RoutingEventsInsights", () => {
         });
 
         expect(result).toEqual({
-          teamId: {
+          calIdTeamId: {
             in: [5],
           },
           id: "form-123",
@@ -116,7 +108,7 @@ describe("RoutingEventsInsights", () => {
       });
 
       it("should handle null userId by using default value", async () => {
-        vi.mocked(readonlyPrisma.membership.findMany).mockResolvedValue([{ teamId: 5 }]);
+        vi.mocked(readonlyPrisma.calIdMembership.findMany).mockResolvedValue([{ calIdTeamId: 5 }]);
 
         const result = await TestRoutingEventsInsights.testGetWhereForTeamOrAllTeams({
           userId: null,
@@ -125,7 +117,7 @@ describe("RoutingEventsInsights", () => {
         });
 
         expect(result).toEqual({
-          teamId: {
+          calIdTeamId: {
             in: [5],
           },
         });
@@ -138,7 +130,7 @@ describe("RoutingEventsInsights", () => {
 
         expect(result).toEqual({
           userId: -1,
-          teamId: null,
+          calIdTeamId: null,
         });
       });
     });
@@ -152,12 +144,12 @@ describe("RoutingEventsInsights", () => {
 
         expect(result).toEqual({
           userId: 1,
-          teamId: null,
+          calIdTeamId: null,
         });
       });
 
       it("should handle when both teamId and organizationId are provided", async () => {
-        vi.mocked(readonlyPrisma.membership.findMany).mockResolvedValue([{ teamId: 5 }]);
+        vi.mocked(readonlyPrisma.calIdMembership.findMany).mockResolvedValue([{ calIdTeamId: 5 }]);
 
         const result = await TestRoutingEventsInsights.testGetWhereForTeamOrAllTeams({
           userId: 1,
@@ -167,15 +159,14 @@ describe("RoutingEventsInsights", () => {
         });
 
         expect(result).toEqual({
-          teamId: {
+          calIdTeamId: {
             in: [5],
           },
         });
       });
 
       it("should handle when both teamId and organizationId are provided with isAll true", async () => {
-        vi.mocked(readonlyPrisma.team.findMany).mockResolvedValue([{ id: 1 }, { id: 2 }]);
-        vi.mocked(readonlyPrisma.membership.findMany).mockResolvedValue([{ teamId: 1 }, { teamId: 2 }]);
+        vi.mocked(readonlyPrisma.calIdMembership.findMany).mockResolvedValue([{ calIdTeamId: 5 }]);
 
         const result = await TestRoutingEventsInsights.testGetWhereForTeamOrAllTeams({
           userId: 1,
@@ -185,16 +176,13 @@ describe("RoutingEventsInsights", () => {
         });
 
         expect(result).toEqual({
-          teamId: {
-            in: [1, 2],
+          calIdTeamId: {
+            in: [5],
           },
         });
       });
 
       it("should handle undefined teamId with isAll true", async () => {
-        vi.mocked(readonlyPrisma.team.findMany).mockResolvedValue([]);
-        vi.mocked(readonlyPrisma.membership.findMany).mockResolvedValue([]);
-
         const result = await TestRoutingEventsInsights.testGetWhereForTeamOrAllTeams({
           userId: 1,
           teamId: undefined,
@@ -204,7 +192,7 @@ describe("RoutingEventsInsights", () => {
 
         expect(result).toEqual({
           userId: 1,
-          teamId: null,
+          calIdTeamId: null,
         });
       });
     });

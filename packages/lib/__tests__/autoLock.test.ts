@@ -1,15 +1,15 @@
-import { generateSecureHash } from "@calid/features/modules/api-keys/utils/hashKey";
 import type { RatelimitResponse } from "@unkey/ratelimit";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { RedisService } from "@calcom/features/redis/RedisService";
 import prisma from "@calcom/prisma";
+import { generateSecureHash } from "@calid/features/modules/api-keys/utils/hashKey";
 
 import { handleAutoLock } from "../autoLock";
 
 // Mock the dependencies
 vi.mock("@calcom/features/redis/RedisService");
-vi.mock("@calcom/features/ee/api-keys/lib/apiKeys", () => ({
+vi.mock("@calid/features/modules/api-keys/utils/hashKey", () => ({
   generateSecureHash: vi.fn((key) => `hashed_${key}`),
 }));
 vi.mock("@calcom/prisma", () => ({
@@ -17,7 +17,7 @@ vi.mock("@calcom/prisma", () => ({
     user: {
       update: vi.fn(),
     },
-    apiKey: {
+    calIdApiKey: {
       findUnique: vi.fn(),
     },
   },

@@ -1,8 +1,8 @@
 import prismock from "../../../../../tests/libs/__mocks__/prisma";
 
-import { expectWebhookToHaveBeenCalledWith } from "@calcom/web/test/utils/bookingScenario/expects";
-
-import { describe, expect, beforeEach } from "vitest";
+import { dispatcher, JobName } from "@calid/job-dispatcher";
+import { QueueName } from "@calid/queue";
+import { describe, expect, beforeEach, vi } from "vitest";
 
 import dayjs from "@calcom/dayjs";
 import { test } from "@calcom/web/test/fixtures/fixtures";
@@ -12,6 +12,7 @@ import { handleWebhookScheduledTriggers } from "../handleWebhookScheduledTrigger
 describe("Cron job handler", () => {
   beforeEach(async () => {
     await prismock.webhookScheduledTriggers.deleteMany();
+    vi.spyOn(dispatcher, "dispatch").mockResolvedValue(undefined as never);
   });
   test(`should delete old webhook scheduled triggers`, async () => {
     const now = dayjs();
@@ -63,11 +64,29 @@ describe("Cron job handler", () => {
         },
       ],
     });
-    await handleWebhookScheduledTriggers(prismock);
+    const result = await handleWebhookScheduledTriggers(prismock);
 
-    expectWebhookToHaveBeenCalledWith("https://example.com/test", { triggerEvent: "MEETING_ENDED", payload });
-    expect(() =>
-      expectWebhookToHaveBeenCalledWith("https://example.com", { triggerEvent: "MEETING_ENDED", payload })
-    ).toThrow("Webhook not sent to https://example.com for MEETING_ENDED. All webhooks: []");
+    expect(result).toEqual({ scheduledJobs: 2, failedJobs: 0 });
+    expect(dispatcher.dispatch).toHaveBeenCalledTimes(2);
+    expect(dispatcher.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queue: QueueName.SCHEDULED,
+        name: JobName.WEBHOOK_SCHEDULED_TRIGGER,
+        data: { id: 1 },
+      })
+    );
+    expect(dispatcher.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queue: QueueName.SCHEDULED,
+        name: JobName.WEBHOOK_SCHEDULED_TRIGGER,
+        data: { id: 2 },
+      })
+    );
+
+    const triggers = await prismock.webhookScheduledTriggers.findMany({ orderBy: { id: "asc" } });
+    expect(triggers.map((t) => ({ id: t.id, scheduled: t.scheduled }))).toEqual([
+      { id: 1, scheduled: true },
+      { id: 2, scheduled: true },
+    ]);
   });
 });

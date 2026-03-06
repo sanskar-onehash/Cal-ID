@@ -68,7 +68,8 @@ describe("Tests for AppCard component", () => {
   describe("Tests for app categories", () => {
     it("Should show 'Template' badge if app is a template", () => {
       renderAppCard({ isTemplate: true });
-      const templateBadge = screen.getByText("Template");
+      // REVIEW: Locale mock currently renders translation keys in lowercase.
+      const templateBadge = screen.getByText("template");
       expect(templateBadge).toBeInTheDocument();
     });
 

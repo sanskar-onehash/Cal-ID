@@ -7,6 +7,30 @@ vi.mock("@calcom/app-store", () => appStoreMock);
 
 beforeEach(() => {
   mockReset(appStoreMock);
+  appStoreMock.default.jitsivideo.mockResolvedValue({
+    lib: {
+      VideoApiAdapter: () => ({
+        createMeeting: async () => ({
+          type: "jitsi_video",
+          id: "MOCK_JITSI_ID",
+          password: "MOCK_JITSI_PASSWORD",
+          url: "https://meet.jit.si/mock-jitsi-room",
+        }),
+      }),
+    },
+  } as any);
+  appStoreMock.default.dailyvideo.mockResolvedValue({
+    lib: {
+      VideoApiAdapter: () => ({
+        createMeeting: async () => ({
+          type: "daily_video",
+          id: "MOCK_DAILY_ID",
+          password: "MOCK_DAILY_PASSWORD",
+          url: "https://daily.co/mock-daily-room",
+        }),
+      }),
+    },
+  } as any);
 });
 
 const appStoreMock = mockDeep<typeof appStore>({

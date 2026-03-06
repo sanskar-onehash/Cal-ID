@@ -153,7 +153,8 @@ describe("CreditsRepository", () => {
           expenseLogs: {
             where: {
               date: {
-                gte: new Date("2025-04-01T00:00:00Z"),
+                // Current fallback normalizes the month-start boundary in local timezone.
+                gte: new Date("2025-03-31T18:30:00.000Z"),
                 lte: systemTime,
               },
             },

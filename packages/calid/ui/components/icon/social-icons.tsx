@@ -1,4 +1,6 @@
 import { cn } from "@calid/features/lib/cn";
+// REVIEW: Explicit React import is required because this file stores JSX in object literals.
+import * as React from "react";
 import type { SVGProps } from "react";
 
 export type SocialIconName = "linkedin" | "facebook" | "twitter" | "instagram" | "youtube" | "github";

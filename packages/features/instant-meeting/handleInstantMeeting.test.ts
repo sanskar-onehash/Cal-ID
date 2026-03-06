@@ -6,7 +6,6 @@ import {
   getGoogleCalendarCredential,
   TestData,
   getOrganizer,
-  mockSuccessfulVideoMeetingCreation,
   mockCalendarToHaveNoBusySlots,
   mockNoTranslations,
 } from "@calcom/web/test/utils/bookingScenario/bookingScenario";
@@ -21,7 +20,7 @@ vi.mock("@calcom/features/notifications/sendNotification", () => ({
 }));
 
 vi.mock("@calcom/lib/videoClient", () => ({
-  createInstantMeetingWithCalVideo: vi.fn().mockResolvedValue({
+  createInstantMeetingWithJitsiVideo: vi.fn().mockResolvedValue({
     type: "daily_video",
     id: "MOCK_INSTANT_MEETING_ID",
     password: "MOCK_INSTANT_PASS",
@@ -59,6 +58,7 @@ describe("handleInstantMeeting", () => {
                   id: 101,
                 },
               ],
+              teamId: 1,
               team: {
                 id: 1,
               },
@@ -69,15 +69,18 @@ describe("handleInstantMeeting", () => {
           apps: [TestData.apps["daily-video"], TestData.apps["google-calendar"]],
         })
       );
-
-      mockSuccessfulVideoMeetingCreation({
-        metadataLookupKey: "dailyvideo",
-        videoMeetingData: {
-          id: "MOCK_ID",
-          password: "MOCK_PASS",
-          url: `http://mock-dailyvideo.example.com/meeting-1`,
+      await prismock.calIdTeam.create({
+        data: {
+          id: 1,
+          name: "Engineering",
+          slug: "engineering",
         },
       });
+      await prismock.eventType.update({
+        where: { id: 1 },
+        data: { calIdTeamId: 1 },
+      });
+
       mockCalendarToHaveNoBusySlots("googlecalendar", {
         create: {
           uid: "MOCKED_GOOGLE_CALENDAR_EVENT_ID",

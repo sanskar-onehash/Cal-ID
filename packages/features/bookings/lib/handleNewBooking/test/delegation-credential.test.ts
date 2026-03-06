@@ -1047,10 +1047,10 @@ describe("handleNewBooking", () => {
           uid: createdBooking.uid!,
           eventTypeId: null,
           status: BookingStatus.ACCEPTED,
-          location: BookingLocations.CalVideo,
+          location: "integrations:jitsi",
           references: [
             {
-              type: appStoreMetadata.dailyvideo.type,
+              type: "jitsi_video",
               // Verify Delegation credential was not used
               delegationCredentialId: null,
             },

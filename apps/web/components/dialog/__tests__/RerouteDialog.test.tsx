@@ -170,6 +170,75 @@ vi.mock("@calcom/trpc/react", () => ({
             isPending: false,
           })),
         },
+        calid_getResponseWithFormFields: {
+          useQuery: vi.fn(() => ({
+            data: {
+              form: {
+                id: "form-id",
+                name: "Test Form",
+                fields: [
+                  {
+                    id: "company-size",
+                    label: "Company Size",
+                    type: "select",
+                    options: [
+                      { label: "Small", value: "small" },
+                      { label: "Medium", value: "medium" },
+                      { label: "Large", value: "large" },
+                    ],
+                  },
+                  {
+                    id: "country",
+                    label: "Country",
+                    type: "select",
+                    options: [
+                      { label: "USA", value: "usa" },
+                      { label: "Canada", value: "canada" },
+                      { label: "UK", value: "uk" },
+                    ],
+                  },
+                  {
+                    id: "email",
+                    label: "Email",
+                    type: "email",
+                    required: true,
+                  },
+                ],
+                routes: [
+                  {
+                    id: "mock-route-id",
+                    action: {
+                      eventTypeId: 123,
+                      type: RouteActionType.EventTypeRedirectUrl,
+                      value: "team/test-team/new-test-event",
+                    },
+                    __testMatching: true,
+                  },
+                  {
+                    id: "fallback-route",
+                    isFallback: true,
+                    action: {
+                      type: RouteActionType.CustomPageMessage,
+                      value: "456",
+                    },
+                    __testMatching: false,
+                  },
+                ],
+              },
+              response: {
+                "company-size": {
+                  label: "Company Size",
+                  value: "small",
+                },
+                country: {
+                  label: "Country",
+                  value: "usa",
+                },
+              },
+            },
+            isPending: false,
+          })),
+        },
       },
       eventTypes: {
         get: {
@@ -357,7 +426,7 @@ describe("RerouteDialog", () => {
 
     expectEventTypeInfoInCurrentRouting({
       eventTypeText: "team/test-team/test-event",
-      eventTypeHref: "https://cal.com/team/test-team/test-event",
+      eventTypeHref: "https://cal.id/team/test-team/test-event",
     });
     expectOrganizerInfoInCurrentRouting({
       organizerText: "user@example.com",
@@ -425,7 +494,7 @@ describe("RerouteDialog", () => {
 
       expectEventTypeInfoInReroutePreview({
         eventTypeText: "team/test-team/new-test-event",
-        eventTypeHref: "https://cal.com/team/test-team/new-test-event",
+        eventTypeHref: "https://cal.id/team/test-team/new-test-event",
       });
       await expect(screen.getByText("verify_new_route")).toBeEnabled();
       expect(screen.getByTestId("reroute-preview-hosts")).toHaveTextContent("reroute_preview_possible_host");

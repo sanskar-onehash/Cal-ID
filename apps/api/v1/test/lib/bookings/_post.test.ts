@@ -20,6 +20,11 @@ import handler from "../../../pages/api/bookings/_post";
 vi.mock("@calcom/features/bookings/lib/handleNewBooking/getEventTypesFromDB", () => ({
   getEventTypesFromDB: vi.fn(),
 }));
+vi.mock("@calcom/lib/firebaseAdmin", () => ({
+  default: {
+    sendFirebaseNotification: vi.fn(),
+  },
+}));
 
 const mockEventTypeData = {
   eventType: {

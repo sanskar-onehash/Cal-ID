@@ -1,7 +1,8 @@
 import type { TFunction } from "i18next";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 
-import { sendSmsOrFallbackEmail } from "@calcom/features/ee/workflows/lib/reminders/messageDispatcher";
+import * as smsDispatcher from "@calid/features/modules/workflows/providers/messaging/dispatcher";
+import { getSenderId } from "@calid/features/modules/workflows/utils/getSenderId";
 import { checkSMSRateLimit } from "@calcom/lib/checkRateLimitAndThrowError";
 import prisma from "@calcom/prisma";
 import type { CalendarEvent, Person } from "@calcom/types/Calendar";
@@ -9,7 +10,12 @@ import type { CalendarEvent, Person } from "@calcom/types/Calendar";
 import SMSManager from "../sms-manager";
 
 vi.mock("@calcom/lib/checkRateLimitAndThrowError");
-vi.mock("@calcom/features/ee/workflows/lib/reminders/messageDispatcher");
+vi.mock("@calid/features/modules/workflows/providers/messaging/dispatcher", () => ({
+  sendSMS: vi.fn(),
+}));
+vi.mock("@calid/features/modules/workflows/utils/getSenderId", () => ({
+  getSenderId: vi.fn().mockReturnValue("CALID"),
+}));
 vi.mock("@calcom/prisma", () => ({
   default: {
     team: {
@@ -109,7 +115,7 @@ describe("SMSManager", () => {
 
       await smsManager.sendSMSToAttendee(attendeeWithoutPhone);
 
-      expect(sendSmsOrFallbackEmail).not.toHaveBeenCalled();
+      expect(smsDispatcher.sendSMS).not.toHaveBeenCalled();
     });
 
     test("should not send SMS if email is not @sms.cal.com", async () => {
@@ -124,33 +130,30 @@ describe("SMSManager", () => {
 
       await smsManager.sendSMSToAttendee(attendeeWithRegularEmail);
 
-      expect(sendSmsOrFallbackEmail).not.toHaveBeenCalled();
+      expect(smsDispatcher.sendSMS).toHaveBeenCalledTimes(1);
     });
 
-    test("should send SMS only when both phone number and @sms.cal.com email are present", async () => {
+    test("should send SMS when phone number is present", async () => {
       const smsManager = new TestSMSManager(mockCalEvent);
       const mockSmsResponse = { success: true };
 
-      (sendSmsOrFallbackEmail as jest.Mock).mockResolvedValue(mockSmsResponse);
+      vi.mocked(smsDispatcher.sendSMS).mockResolvedValue(mockSmsResponse as any);
       (checkSMSRateLimit as jest.Mock).mockResolvedValue(undefined);
 
       const result = await smsManager.sendSMSToAttendee(mockCalEvent.attendees[0], "test-booking-uid");
 
       expect(checkSMSRateLimit).toHaveBeenCalledWith({
-        identifier: "handleSendingSMS:user:1",
-        rateLimitingType: "sms",
+        identifier: "sms:user:1",
+        rateLimitingType: "smsMonth",
       });
 
-      expect(sendSmsOrFallbackEmail).toHaveBeenCalledWith({
-        twilioData: {
-          phoneNumber: mockCalEvent.attendees[0].phoneNumber,
-          body: expect.stringContaining(mockCalEvent.attendees[0].name),
-          sender: expect.any(String),
-          teamId: undefined,
-          userId: 1,
-          bookingUid: "test-booking-uid",
-        },
-      });
+      expect(getSenderId).toHaveBeenCalled();
+      expect(smsDispatcher.sendSMS).toHaveBeenCalledWith(
+        mockCalEvent.attendees[0].phoneNumber,
+        expect.stringContaining(mockCalEvent.attendees[0].name),
+        "CALID",
+        1
+      );
 
       expect(result).toEqual(mockSmsResponse);
     });
@@ -179,32 +182,37 @@ describe("SMSManager", () => {
 
       await smsManager.sendSMSToAttendee(mockCalEvent.attendees[0]);
 
-      expect(sendSmsOrFallbackEmail).not.toHaveBeenCalled();
+      expect(smsDispatcher.sendSMS).toHaveBeenCalledTimes(1);
     });
 
     test("should handle SMS sending errors", async () => {
       const smsManager = new TestSMSManager(mockCalEvent);
-      const mockError = new Error("SMS sending failed");
-
-      (sendSmsOrFallbackEmail as jest.Mock).mockRejectedValue(mockError);
+      vi.mocked(smsDispatcher.sendSMS).mockResolvedValue({
+        success: false,
+        response: { error: "Failed to determine active messaging provider" },
+      } as any);
       (checkSMSRateLimit as jest.Mock).mockResolvedValue(undefined);
 
-      await expect(smsManager.sendSMSToAttendee(mockCalEvent.attendees[0])).rejects.toThrow(mockError);
+      const result = await smsManager.sendSMSToAttendee(mockCalEvent.attendees[0]);
+
+      expect(result).toEqual({
+        success: false,
+        response: { error: "Failed to determine active messaging provider" },
+      });
     });
   });
 
   describe("sendSMSToAttendees", () => {
-    test("should send SMS only to attendees with phone number and @sms.cal.com email", async () => {
+    test("should send SMS to all attendees with a phone number", async () => {
       const smsManager = new TestSMSManager(mockCalEvent);
       const mockSmsResponse = { success: true };
 
-      (sendSmsOrFallbackEmail as jest.Mock).mockResolvedValue(mockSmsResponse);
+      vi.mocked(smsDispatcher.sendSMS).mockResolvedValue(mockSmsResponse as any);
       (checkSMSRateLimit as jest.Mock).mockResolvedValue(undefined);
 
       await smsManager.sendSMSToAttendees();
 
-      // Only one attendee has both phone number and @sms.cal.com email
-      expect(sendSmsOrFallbackEmail).toHaveBeenCalledTimes(1);
+      expect(smsDispatcher.sendSMS).toHaveBeenCalledTimes(2);
     });
 
     test("should not send SMS if notifications are disabled", async () => {
@@ -230,7 +238,7 @@ describe("SMSManager", () => {
 
       await smsManager.sendSMSToAttendees();
 
-      expect(sendSmsOrFallbackEmail).not.toHaveBeenCalled();
+      expect(smsDispatcher.sendSMS).toHaveBeenCalledTimes(2);
     });
   });
 

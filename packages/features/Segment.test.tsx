@@ -13,8 +13,8 @@ const mockGetAttributesForTeam = (
   arg: { data: Attributes; isPending: false } | { data: undefined; isPending: true }
 ) => {
   (
-    trpc.viewer.appRoutingForms.getAttributesForTeam.useQuery as Mock<
-      typeof trpc.viewer.appRoutingForms.getAttributesForTeam.useQuery
+    trpc.viewer.appRoutingForms.calid_getAttributesForTeam.useQuery as Mock<
+      typeof trpc.viewer.appRoutingForms.calid_getAttributesForTeam.useQuery
     >
   )
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,6 +65,9 @@ vi.mock("@calcom/trpc", () => ({
     viewer: {
       appRoutingForms: {
         getAttributesForTeam: {
+          useQuery: vi.fn(),
+        },
+        calid_getAttributesForTeam: {
           useQuery: vi.fn(),
         },
       },

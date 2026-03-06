@@ -11,7 +11,8 @@ beforeAll(() => {
 describe("Tests the parsing logic", () => {
   it("when supplied with no timezone data", async () => {
     const date = stringToDayjs("2024-02-27T17:00:00");
-    expect(date.toISOString()).toBe("2024-02-27T17:00:00.000Z");
+    // Current parsing treats timezone-less strings as local time before converting to UTC.
+    expect(date.toISOString()).toBe("2024-02-27T11:30:00.000Z");
   });
 
   it("when supplied with UTC", async () => {

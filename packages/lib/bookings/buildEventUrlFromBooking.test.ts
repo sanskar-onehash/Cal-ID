@@ -25,6 +25,10 @@ describe("buildEventUrlFromBooking", () => {
             slug: "engineering",
             parentId: 123,
           },
+          calIdTeam: {
+            slug: "engineering",
+            parentId: 123,
+          },
         },
         profileEnrichedBookingUser: {
           profile: {
@@ -91,6 +95,10 @@ describe("buildEventUrlFromBooking", () => {
         eventType: {
           slug: "30min",
           team: {
+            slug: "engineering",
+            parentId: 123,
+          },
+          calIdTeam: {
             slug: "engineering",
             parentId: 123,
           },

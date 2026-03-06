@@ -3,8 +3,8 @@
 import { Icon } from "@calid/features/ui/components/icon";
 import { useState } from "react";
 
+import { AttachmentUploader } from "@calid/features/ui/components/uploader";
 import { Button } from "@calcom/ui/components/button";
-import { FileUploader, type FileData } from "@calcom/ui/components/file-uploader";
 import { Label, TextArea } from "@calcom/ui/components/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@calcom/ui/components/popover";
 import { showToast } from "@calcom/ui/components/toast";
@@ -13,8 +13,15 @@ interface ContactFormData {
   name: string;
   email: string;
   message: string;
-  attachments?: FileData[];
+  attachments?: UploadedFileData[];
 }
+
+type UploadedFileData = {
+  file: File;
+  id: string;
+  url?: string;
+  uploading?: boolean;
+};
 
 const PlainContactForm = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,7 +46,11 @@ const PlainContactForm = () => {
     }[]
   >([]);
 
-  const handleUpload = async (allFiles: FileData[], newFiles: FileData[], removedFiles: FileData[]) => {
+  const handleUpload = async (
+    allFiles: UploadedFileData[],
+    newFiles: UploadedFileData[],
+    removedFiles: UploadedFileData[]
+  ) => {
     if (newFiles.length > 0) {
       const newFile = newFiles[0];
       setUploads((prev) => [...prev, { file: newFile.file, uploading: true, id: newFile.id }]);
@@ -195,14 +206,11 @@ const PlainContactForm = () => {
                 </div>
                 <div>
                   <Label>Attachments (optional)</Label>
-                  <FileUploader
+                  <AttachmentUploader
                     id="contact-attachments"
-                    buttonMsg="Add Files"
                     onFilesChange={handleUpload}
-                    acceptedFileTypes={["images", "videos"]}
-                    multiple={false}
-                    showFilesList
-                    maxFiles={5}
+                    acceptedFileTypes={["images", "documents"]}
+                    maxAllowedFiles={5}
                     maxFileSize={10 * 1024 * 1024}
                     disabled={isSubmitting || isUploadingImage}
                     testId="contact-form-file-upload"

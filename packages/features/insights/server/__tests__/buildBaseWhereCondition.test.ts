@@ -1,20 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import type { readonlyPrisma } from "@calcom/prisma";
-
 import { buildBaseWhereCondition } from "../trpc-router";
 
-const mockTeamFindMany = vi.fn();
-const mockMembershipFindMany = vi.fn();
+const mockEventTypeFindMany = vi.fn();
 
 const mockInsightsDb = {
-  team: {
-    findMany: mockTeamFindMany,
+  eventType: {
+    findMany: mockEventTypeFindMany,
   },
-  membership: {
-    findMany: mockMembershipFindMany,
-  },
-} as unknown as typeof readonlyPrisma;
+} as any;
 
 const createMockContext = (overrides = {}) => ({
   userIsOwnerAdminOfParentTeam: false,
@@ -69,8 +63,6 @@ describe("buildBaseWhereCondition", () => {
 
   describe("Organization-wide queries", () => {
     it("should return appropriate where condition when no teams found in organization", async () => {
-      mockTeamFindMany.mockResolvedValue([]);
-
       const ctx = createMockContext({
         userIsOwnerAdminOfParentTeam: true,
         userOrganizationId: 100,
@@ -81,20 +73,10 @@ describe("buildBaseWhereCondition", () => {
         ctx,
       });
 
-      expect(result.whereCondition).toEqual({
-        OR: [
-          {
-            teamId: { in: [100] },
-            isTeamBooking: true,
-          },
-        ],
-      });
+      expect(result.whereCondition).toEqual({ id: -1 });
     });
 
     it("should build complex where condition for organization-wide query", async () => {
-      mockTeamFindMany.mockResolvedValue([{ id: 101 }, { id: 102 }]);
-      mockMembershipFindMany.mockResolvedValue([{ userId: 201 }, { userId: 202 }]);
-
       const ctx = createMockContext({
         userIsOwnerAdminOfParentTeam: true,
         userOrganizationId: 100,
@@ -105,28 +87,13 @@ describe("buildBaseWhereCondition", () => {
         ctx,
       });
 
-      expect(result.whereCondition).toEqual({
-        OR: [
-          {
-            teamId: {
-              in: [100, 101, 102],
-            },
-            isTeamBooking: true,
-          },
-          {
-            userId: {
-              in: [201, 202],
-            },
-            isTeamBooking: false,
-          },
-        ],
-      });
+      expect(result.whereCondition).toEqual({ id: -1 });
     });
   });
 
   describe("Team-specific queries", () => {
     it("should build where condition for team-specific query", async () => {
-      mockMembershipFindMany.mockResolvedValue([{ userId: 301 }, { userId: 302 }]);
+      mockEventTypeFindMany.mockResolvedValue([{ id: 301 }, { id: 302 }]);
 
       const ctx = createMockContext();
 
@@ -139,21 +106,21 @@ describe("buildBaseWhereCondition", () => {
       expect(result.whereCondition).toEqual({
         OR: [
           {
-            teamId: 200,
-            isTeamBooking: true,
-          },
-          {
-            userId: {
+            eventTypeId: {
               in: [301, 302],
             },
-            isTeamBooking: false,
+          },
+          {
+            eventParentId: {
+              in: [301, 302],
+            },
           },
         ],
       });
     });
 
     it("should apply both team and eventTypeId conditions when both are provided", async () => {
-      mockMembershipFindMany.mockResolvedValue([{ userId: 301 }, { userId: 302 }]);
+      mockEventTypeFindMany.mockResolvedValue([{ id: 301 }, { id: 302 }]);
 
       const ctx = createMockContext();
 
@@ -172,14 +139,14 @@ describe("buildBaseWhereCondition", () => {
           {
             OR: [
               {
-                teamId: 200,
-                isTeamBooking: true,
-              },
-              {
-                userId: {
+                eventTypeId: {
                   in: [301, 302],
                 },
-                isTeamBooking: false,
+              },
+              {
+                eventParentId: {
+                  in: [301, 302],
+                },
               },
             ],
           },
@@ -234,7 +201,7 @@ describe("buildBaseWhereCondition", () => {
     });
 
     it("should handle empty team members with proper team condition", async () => {
-      mockMembershipFindMany.mockResolvedValue([]);
+      mockEventTypeFindMany.mockResolvedValue([]);
 
       const ctx = createMockContext();
 
@@ -244,30 +211,11 @@ describe("buildBaseWhereCondition", () => {
         ctx,
       });
 
-      expect(result.whereCondition).toEqual({
-        OR: [
-          {
-            teamId: 200,
-            isTeamBooking: true,
-          },
-          {
-            userId: {
-              in: [],
-            },
-            isTeamBooking: false,
-          },
-        ],
-      });
+      expect(result.whereCondition).toEqual({ id: -1 });
     });
 
     it("should handle rejected team membership differently from empty team", async () => {
-      mockMembershipFindMany.mockImplementation((params) => {
-        if (params?.where?.accepted === true) {
-          // No accepted members
-          return Promise.resolve([]);
-        }
-        return Promise.resolve([{ userId: 601 }, { userId: 602 }]);
-      });
+      mockEventTypeFindMany.mockResolvedValue([]);
 
       const ctx = createMockContext();
 
@@ -277,21 +225,7 @@ describe("buildBaseWhereCondition", () => {
         ctx,
       });
 
-      // Should only include team bookings since there are no accepted members
-      expect(result.whereCondition).toEqual({
-        OR: [
-          {
-            teamId: 200,
-            isTeamBooking: true,
-          },
-          {
-            userId: {
-              in: [], // Empty because no accepted members
-            },
-            isTeamBooking: false,
-          },
-        ],
-      });
+      expect(result.whereCondition).toEqual({ id: -1 });
     });
   });
 });

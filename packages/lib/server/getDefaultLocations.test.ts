@@ -4,7 +4,7 @@ import { getGoogleMeetCredential, TestData } from "@calcom/web/test/utils/bookin
 
 import { describe, expect, it } from "vitest";
 
-import { DailyLocationType, MeetLocationType } from "@calcom/app-store/locations";
+import { JitsiLocationType, MeetLocationType } from "@calcom/app-store/locations";
 
 import { getDefaultLocations } from "./getDefaultLocations";
 
@@ -66,7 +66,7 @@ describe("getDefaultLocation ", async () => {
     const res = await getDefaultLocations(user);
     expect(res[0]).toEqual(
       expect.objectContaining({
-        type: DailyLocationType,
+        type: JitsiLocationType,
       })
     );
   });

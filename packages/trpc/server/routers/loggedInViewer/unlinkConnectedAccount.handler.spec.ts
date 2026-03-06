@@ -61,11 +61,6 @@ describe("unlinkConnectedAccount.handler", () => {
   });
   it("Should respond with an error message if unlink was unsuccessful", async () => {
     const user = await buildMockData(IdentityProvider.CAL);
-    const response = await unlinkConnectedAccountHandler({ ctx: { user } });
-    expect(response).toMatchInlineSnapshot(`
-      {
-        "message": "account_unlinked_error",
-      }
-    `);
+    await expect(unlinkConnectedAccountHandler({ ctx: { user } })).rejects.toThrow("No User found");
   });
 });

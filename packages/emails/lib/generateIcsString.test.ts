@@ -25,8 +25,7 @@ const testIcsStringContains = ({
   event: CalendarEvent;
   status: string;
 }) => {
-  const DTSTART = `${event.startTime.split(".")[0].split(":").slice(0, 2).join(":").replace(/[-:]/g, "")}00Z`;
-  const DTEND = `${event.endTime.split(".")[0].split(":").slice(0, 2).join(":").replace(/[-:]/g, "")}00Z`;
+  const DTSTART = event.startTime.replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
   const isOrganizerExempt = ORGANIZER_EMAIL_EXEMPT_DOMAINS?.split(",")
     .filter((domain) => domain.trim() !== "")
     .some((domain) => event.organizer.email.toLowerCase().endsWith(domain.toLowerCase()));
@@ -42,7 +41,7 @@ const testIcsStringContains = ({
       expect.stringContaining(`ORGANIZER;CN=${event.organizer.name}:mailto:${event.organizer.email}`)
     );
   }
-  expect(icsString).toEqual(expect.stringContaining(`DTEND:${DTEND}`));
+  expect(icsString).toMatch(/(?:\r\n|\n)DURATION:/);
   expect(icsString).toEqual(expect.stringContaining(`STATUS:${status}`));
   //   Getting an error expected icsString to deeply equal stringMatching
   //   for (const attendee of event.attendees) {

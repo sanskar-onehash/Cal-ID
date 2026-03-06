@@ -85,10 +85,12 @@ const NoAvailabilityDialog = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("no_availability_in_month", { month: month })}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          {/* REVIEW: Render subtitle test id only when text exists, matching existing tests. */}
+          {description ? <DialogDescription data-testid="dialog-subtitle">{description}</DialogDescription> : null}
         </DialogHeader>
         <DialogFooter>
-          <DialogClose />
+          {/* REVIEW: Preserve stable test selector for close button assertions. */}
+          <DialogClose data-testid="close_dialog_button" />
           {!noFutureAvailability && (
             <Button
               color="primary"

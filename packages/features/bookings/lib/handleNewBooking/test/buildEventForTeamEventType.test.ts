@@ -5,6 +5,12 @@ import { SchedulingType } from "@calcom/prisma/enums";
 
 import { buildEventForTeamEventType } from "../../handleNewBooking";
 
+vi.mock("@calcom/lib/firebaseAdmin", () => ({
+  default: {
+    sendFirebaseNotification: vi.fn(),
+  },
+}));
+
 vi.mock("@calcom/lib/server/i18n", () => ({
   getTranslation: vi.fn().mockResolvedValue("translated"),
 }));

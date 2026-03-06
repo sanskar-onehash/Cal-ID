@@ -17,6 +17,9 @@ export function setupAndTeardown() {
 
     // Ensure that Rate Limiting isn't enforced for tests
     delete process.env.UNKEY_ROOT_KEY;
+    // Keep background jobs synchronous in booking tests so side-effects
+    // (emails/webhooks assertions) are observable in-process.
+    process.env.USE_BULLMQ = "false";
     mockNoTranslations();
     // mockEnableEmailFeature();
     enableEmailFeature();
@@ -29,6 +32,7 @@ export function setupAndTeardown() {
     //@ts-expect-error - It is a readonly variable
     delete process.env.STRIPE_WEBHOOK_SECRET;
     delete process.env.DAILY_API_KEY;
+    delete process.env.USE_BULLMQ;
     globalThis.testEmails = [];
     fetchMock.resetMocks();
     // process.env.DAILY_API_KEY = "MOCK_DAILY_API_KEY";

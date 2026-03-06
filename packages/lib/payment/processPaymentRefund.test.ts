@@ -19,6 +19,11 @@ vi.mock("@calcom/lib/payment/handlePaymentRefund", () => ({
 
 describe("processPaymentRefund", () => {
   const mockStartTime = new Date("2025-01-01T10:00:00Z");
+  const mockAttendee = {
+    name: "Test Attendee",
+    email: "attendee@example.com",
+    phoneNumber: null,
+  };
 
   const mockPayment = [
     {
@@ -39,11 +44,15 @@ describe("processPaymentRefund", () => {
 
   const mockBooking = {
     startTime: mockStartTime,
+    createdAt: new Date("2024-12-01T10:00:00Z"),
     endTime: new Date("2025-01-01T11:00:00Z"),
+    responses: {},
     payment: mockPayment,
     eventType: {
+      name: "Test Event",
       owner: { id: 1 },
       metadata: {},
+      hosts: [],
     },
   };
 
@@ -69,19 +78,19 @@ describe("processPaymentRefund", () => {
   });
 
   it("should not process refund if no teamId or eventType owner", async () => {
-    await processPaymentRefund({ booking: mockBooking, teamId: null });
+    await processPaymentRefund({ booking: mockBooking, attendee: mockAttendee, teamId: null });
     expect(handlePaymentRefund).not.toHaveBeenCalled();
   });
 
   it("should not process refund if no successful payment found", async () => {
     const invalidBooking = { ...mockBooking, payment: [{ ...mockPayment[0], success: false }] };
-    await processPaymentRefund({ booking: invalidBooking, teamId: 1 });
+    await processPaymentRefund({ booking: invalidBooking, attendee: mockAttendee, teamId: 1 });
     expect(handlePaymentRefund).not.toHaveBeenCalled();
   });
 
   it("should not process refund if refund policy is NEVER", async () => {
     (getPaymentAppData as any).mockReturnValueOnce({ ...mockAppData, refundPolicy: RefundPolicy.NEVER });
-    await processPaymentRefund({ booking: mockBooking, teamId: 1 });
+    await processPaymentRefund({ booking: mockBooking, attendee: mockAttendee, teamId: 1 });
     expect(handlePaymentRefund).not.toHaveBeenCalled();
   });
 
@@ -93,7 +102,7 @@ describe("processPaymentRefund", () => {
     vi.useFakeTimers();
     vi.setSystemTime(mockNow);
 
-    await processPaymentRefund({ booking: mockBooking, teamId: 1 });
+    await processPaymentRefund({ booking: mockBooking, attendee: mockAttendee, teamId: 1 });
 
     expect(handlePaymentRefund).toHaveBeenCalledWith(1, mockPaymentAppCredentials[0]);
   });
@@ -107,7 +116,7 @@ describe("processPaymentRefund", () => {
     vi.useFakeTimers();
     vi.setSystemTime(mockNow);
 
-    await processPaymentRefund({ booking: mockBooking, teamId: 1 });
+    await processPaymentRefund({ booking: mockBooking, attendee: mockAttendee, teamId: 1 });
 
     expect(handlePaymentRefund).not.toHaveBeenCalled();
   });
@@ -123,7 +132,7 @@ describe("processPaymentRefund", () => {
     vi.useFakeTimers();
     vi.setSystemTime(mockNow);
 
-    await processPaymentRefund({ booking: mockBooking, teamId: 1 });
+    await processPaymentRefund({ booking: mockBooking, attendee: mockAttendee, teamId: 1 });
 
     expect(handlePaymentRefund).toHaveBeenCalledWith(1, mockPaymentAppCredentials[0]);
   });
@@ -137,7 +146,7 @@ describe("processPaymentRefund", () => {
     vi.useFakeTimers();
     vi.setSystemTime(mockNow);
 
-    await processPaymentRefund({ booking: mockBooking, teamId: 1 });
+    await processPaymentRefund({ booking: mockBooking, attendee: mockAttendee, teamId: 1 });
 
     expect(handlePaymentRefund).not.toHaveBeenCalled();
   });
@@ -146,7 +155,7 @@ describe("processPaymentRefund", () => {
     (getPaymentAppData as any).mockReturnValueOnce(mockAppData);
     prismaMock.credential.findMany.mockResolvedValueOnce([]);
 
-    await processPaymentRefund({ booking: mockBooking, teamId: 1 });
+    await processPaymentRefund({ booking: mockBooking, attendee: mockAttendee, teamId: 1 });
     expect(handlePaymentRefund).not.toHaveBeenCalled();
   });
 });

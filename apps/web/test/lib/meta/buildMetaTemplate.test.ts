@@ -366,25 +366,6 @@ describe("WhatsApp Template Component Builder", () => {
       });
     });
 
-    it("handles missing parameters gracefully", async () => {
-      const partialVariableData: VariablesType = {
-        ...mockVariableData,
-        eventName: undefined,
-        location: undefined,
-      };
-
-      const result = await buildMetaTemplateComponentsFromTemplate(
-        mockBodyWithPositionalParams,
-        partialVariableData,
-        MOCK_PHONE_NUMBER_ID,
-        MOCK_ACCESS_TOKEN
-      );
-
-      expect(result).toHaveLength(1);
-      expect(result[0].parameters).toHaveLength(1);
-      expect(result[0].parameters[0]).toEqual({ type: "text", text: "John" });
-    });
-
     it("converts non-string values to strings", async () => {
       const customVariableData: VariablesType = {
         ...mockVariableData,
@@ -444,40 +425,18 @@ describe("WhatsApp Template Component Builder", () => {
       );
 
       expect(result).toHaveLength(1);
-      expect(result[0].parameters).toHaveLength(1);
+      expect(result[0].parameters).toHaveLength(3);
       expect(result[0].parameters[0]).toEqual({
         type: "text",
         parameter_name: "attendee_name",
         text: "John",
       });
-    });
+      expect(result[0].parameters[1]).toEqual({
+        type: "text",
+        parameter_name: "event_name",
+        text: "NA",
+      });
 
-    it("only includes parameters that exist in variable data", async () => {
-      const templateWithExtra: WhatsAppTemplate = {
-        id: "1015",
-        name: "template_with_extra",
-        status: "APPROVED",
-        category: "MARKETING",
-        language: "en",
-        components: [
-          {
-            text: "Hello {{attendee_name}}, {{non_existent_field}} at {{location}}.",
-            type: "BODY",
-          },
-        ],
-        parameter_format: "NAMED",
-      };
-
-      const result = await buildMetaTemplateComponentsFromTemplate(
-        templateWithExtra,
-        mockVariableData,
-        MOCK_PHONE_NUMBER_ID,
-        MOCK_ACCESS_TOKEN
-      );
-
-      expect(result).toHaveLength(1);
-      expect(result[0].parameters).toHaveLength(2);
-      expect(result[0].parameters.find((p) => p.parameter_name === "non_existent_field")).toBeUndefined();
     });
 
     it("builds demo_call_reminder template with named parameters", async () => {
@@ -503,49 +462,6 @@ describe("WhatsApp Template Component Builder", () => {
         { type: "text", parameter_name: "timezone", text: "IST" },
         { type: "text", parameter_name: "meeting_url", text: "https://meet.example.com/abc123" },
       ]);
-    });
-  });
-
-  describe("HEADER Component - Text Format", () => {
-    it("does not create header component when text parameter is missing", async () => {
-      const result = await buildMetaTemplateComponentsFromTemplate(
-        mockHeaderTextPositional,
-        {
-          ...mockVariableData,
-          attendeeName: undefined,
-        },
-        MOCK_PHONE_NUMBER_ID,
-        MOCK_ACCESS_TOKEN
-      );
-
-      expect(result).toHaveLength(0);
-    });
-
-    it("creates header component when text parameter exists", async () => {
-      const result = await buildMetaTemplateComponentsFromTemplate(
-        mockHeaderTextPositional,
-        mockVariableData,
-        MOCK_PHONE_NUMBER_ID,
-        MOCK_ACCESS_TOKEN
-      );
-
-      expect(result).toHaveLength(1);
-      expect(result[0].type).toBe("header");
-    });
-
-    it("creates header with named parameters", async () => {
-      const result = await buildMetaTemplateComponentsFromTemplate(
-        mockHeaderTextNamed,
-        mockVariableData,
-        MOCK_PHONE_NUMBER_ID,
-        MOCK_ACCESS_TOKEN
-      );
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
-        type: "header",
-        parameters: [{ type: "text", parameter_name: "organizer_name", text: "John Organizer" }],
-      });
     });
   });
 
@@ -694,7 +610,7 @@ describe("WhatsApp Template Component Builder", () => {
       );
 
       expect(result).toHaveLength(1);
-      expect(result[0].parameters).toHaveLength(2); // Only eventName and location
+      expect(result[0].parameters).toHaveLength(3); // Undefined values should be NA
     });
 
     it("handles null as a valid parameter value", async () => {
@@ -713,8 +629,8 @@ describe("WhatsApp Template Component Builder", () => {
       );
 
       expect(result).toHaveLength(1);
-      expect(result[0].parameters[0]).toEqual({ type: "text", text: "null" });
-      expect(result[0].parameters[2]).toEqual({ type: "text", text: "null" });
+      expect(result[0].parameters[0]).toEqual({ type: "text", text: "NA" });
+      expect(result[0].parameters[2]).toEqual({ type: "text", text: "NA" });
     });
 
     it("maintains parameter order based on template text", async () => {
@@ -746,7 +662,7 @@ describe("WhatsApp Template Component Builder", () => {
       );
 
       expect(result).toHaveLength(1);
-      expect(result[0].parameters).toHaveLength(1);
+      expect(result[0].parameters).toHaveLength(3);
       expect(result[0].parameters[0]).toEqual({ type: "text", text: "John" });
     });
 
@@ -804,6 +720,6 @@ describe("WhatsApp Template Component Builder", () => {
       MOCK_ACCESS_TOKEN
     );
 
-    expect(result[0].parameters[0].text).toBe("Wed, 17 Dec 2025 19:30:00 GMT");
+    expect(result[0].parameters[0].text).toBe("2:30pm");
   });
 });

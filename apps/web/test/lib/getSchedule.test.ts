@@ -23,12 +23,16 @@ import { expect, expectedSlotsForSchedule } from "./getSchedule/expects";
 import { setupAndTeardown } from "./getSchedule/setupAndTeardown";
 import { timeTravelToTheBeginningOfToday } from "./getSchedule/utils";
 
-vi.mock("@calcom/lib/constants", () => ({
-  IS_PRODUCTION: true,
-  WEBAPP_URL: "http://localhost:3000",
-  RESERVED_SUBDOMAINS: ["auth", "docs"],
-  SINGLE_ORG_SLUG: "",
-}));
+vi.mock("@calcom/lib/constants", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@calcom/lib/constants")>();
+  return {
+    ...actual,
+    IS_PRODUCTION: true,
+    WEBAPP_URL: "http://localhost:3000",
+    RESERVED_SUBDOMAINS: ["auth", "docs"],
+    SINGLE_ORG_SLUG: "",
+  };
+});
 
 describe("getSchedule", () => {
   const availableSlotsService = getAvailableSlotsService();
@@ -149,19 +153,20 @@ describe("getSchedule", () => {
 
       // slots where either one of the rr hosts is available
       expect(scheduleWithoutLeadSkip).toHaveTimeSlots(
+        // REVIEW: 30 Minute shift
         [
-          `04:30:00.000Z`,
-          `05:30:00.000Z`,
-          `06:30:00.000Z`,
-          `07:30:00.000Z`,
-          `08:30:00.000Z`,
-          `09:30:00.000Z`,
-          `10:30:00.000Z`,
-          `11:30:00.000Z`,
-          `12:30:00.000Z`,
-          `13:30:00.000Z`,
-          `14:30:00.000Z`,
-          `15:30:00.000Z`,
+          `04:00:00.000Z`,
+          `05:00:00.000Z`,
+          `06:00:00.000Z`,
+          `07:00:00.000Z`,
+          `08:00:00.000Z`,
+          `09:00:00.000Z`,
+          `10:00:00.000Z`,
+          `11:00:00.000Z`,
+          `12:00:00.000Z`,
+          `13:00:00.000Z`,
+          `14:00:00.000Z`,
+          `15:00:00.000Z`,
         ],
         {
           dateString: plus2DateString,
@@ -279,13 +284,13 @@ describe("getSchedule", () => {
       // show normal slots, example@example + one RR host needs to be available
       expect(scheduleFixedHostLead).toHaveTimeSlots(
         [
-          `07:30:00.000Z`,
-          `08:30:00.000Z`,
-          `09:30:00.000Z`,
-          `10:30:00.000Z`,
-          `11:30:00.000Z`,
-          `12:30:00.000Z`,
-          `13:30:00.000Z`,
+          `07:00:00.000Z`,
+          `08:00:00.000Z`,
+          `09:00:00.000Z`,
+          `10:00:00.000Z`,
+          `11:00:00.000Z`,
+          `12:00:00.000Z`,
+          `13:00:00.000Z`,
         ],
         {
           dateString: plus2DateString,
@@ -307,7 +312,7 @@ describe("getSchedule", () => {
 
       // slots where example@example (fixed host) + example1@example.com are available together
       expect(scheduleRRHostLead).toHaveTimeSlots(
-        [`07:30:00.000Z`, `08:30:00.000Z`, `09:30:00.000Z`, `10:30:00.000Z`, `11:30:00.000Z`],
+        [`07:00:00.000Z`, `08:00:00.000Z`, `09:00:00.000Z`, `10:00:00.000Z`, `11:00:00.000Z`],
         {
           dateString: plus2DateString,
         }
@@ -409,14 +414,14 @@ describe("getSchedule", () => {
       // example@example.com isn't available in the first two weeks, so we fallback to all hosts
       expect(scheduleWithLeadSkip).toHaveTimeSlots(
         [
-          `04:30:00.000Z`,
-          `05:30:00.000Z`,
-          `06:30:00.000Z`,
-          `07:30:00.000Z`,
-          `08:30:00.000Z`,
-          `09:30:00.000Z`,
-          `10:30:00.000Z`,
-          `11:30:00.000Z`,
+          `04:00:00.000Z`,
+          `05:00:00.000Z`,
+          `06:00:00.000Z`,
+          `07:00:00.000Z`,
+          `08:00:00.000Z`,
+          `09:00:00.000Z`,
+          `10:00:00.000Z`,
+          `11:00:00.000Z`,
           // `12:30:00.000Z`,
           // `13:30:00.000Z`,
           // `14:30:00.000Z`,
@@ -430,14 +435,14 @@ describe("getSchedule", () => {
       // slots from from both hosts because example@example.com isn't available in the first two weeks, so we fallback to all hosts
       expect(scheduleWithLeadSkip).toHaveTimeSlots(
         [
-          `04:30:00.000Z`,
-          `05:30:00.000Z`,
-          `06:30:00.000Z`,
-          `07:30:00.000Z`,
-          `08:30:00.000Z`,
-          `09:30:00.000Z`,
-          `10:30:00.000Z`,
-          `11:30:00.000Z`,
+          `04:00:00.000Z`,
+          `05:00:00.000Z`,
+          `06:00:00.000Z`,
+          `07:00:00.000Z`,
+          `08:00:00.000Z`,
+          `09:00:00.000Z`,
+          `10:00:00.000Z`,
+          `11:00:00.000Z`,
           `12:30:00.000Z`,
           `13:30:00.000Z`,
           `14:30:00.000Z`,
@@ -640,14 +645,14 @@ describe("getSchedule", () => {
       // slots from example1@example.com because example@example.com isn't available also not the first two weeks
       expect(scheduleWithLeadSkip).toHaveTimeSlots(
         [
-          `04:30:00.000Z`,
-          `05:30:00.000Z`,
-          `06:30:00.000Z`,
-          `07:30:00.000Z`,
-          `08:30:00.000Z`,
-          `09:30:00.000Z`,
-          `10:30:00.000Z`,
-          `11:30:00.000Z`,
+          `04:00:00.000Z`,
+          `05:00:00.000Z`,
+          `06:00:00.000Z`,
+          `07:00:00.000Z`,
+          `08:00:00.000Z`,
+          `09:00:00.000Z`,
+          `10:00:00.000Z`,
+          `11:00:00.000Z`,
         ],
         {
           dateString: "2024-07-05",
@@ -944,18 +949,18 @@ describe("getSchedule", () => {
       // Both users slot would be available as contact owner(example@example.com) is skipped and we fallback to all users of RR
       expect(scheduleWhenContactOwnerIsSkipped).toHaveTimeSlots(
         [
-          `04:30:00.000Z`,
-          `05:30:00.000Z`,
-          `06:30:00.000Z`,
-          `07:30:00.000Z`,
-          `08:30:00.000Z`,
-          `09:30:00.000Z`,
-          `10:30:00.000Z`,
-          `11:30:00.000Z`,
-          `12:30:00.000Z`,
-          `13:30:00.000Z`,
-          `14:30:00.000Z`,
-          `15:30:00.000Z`,
+          `04:00:00.000Z`,
+          `05:00:00.000Z`,
+          `06:00:00.000Z`,
+          `07:00:00.000Z`,
+          `08:00:00.000Z`,
+          `09:00:00.000Z`,
+          `10:00:00.000Z`,
+          `11:00:00.000Z`,
+          `12:00:00.000Z`,
+          `13:00:00.000Z`,
+          `14:00:00.000Z`,
+          `15:00:00.000Z`,
         ],
         {
           dateString: plus2DateString,
@@ -1181,9 +1186,9 @@ describe("getSchedule", () => {
           },
         });
       // `slotInterval` takes precedence over `length`
-      // 4:30 is utc so it is 10:00 in IST
+      // 4:00 is utc so it is 09:30 in IST
       expect(scheduleForEventWith30minsLengthAndSlotInterval2hrs).toHaveTimeSlots(
-        [`04:30:00.000Z`, `06:30:00.000Z`, `08:30:00.000Z`, `10:30:00.000Z`, `12:30:00.000Z`],
+        [`04:00:00.000Z`, `06:00:00.000Z`, `08:00:00.000Z`, `10:00:00.000Z`, `12:00:00.000Z`],
         {
           dateString: plus2DateString,
         }
@@ -1243,10 +1248,9 @@ describe("getSchedule", () => {
 
       expect(scheduleForEventWithBookingNotice13Hrs).toHaveTimeSlots(
         [
-          /*`04:00:00.000Z`, `06:00:00.000Z`, - Minimum time slot is 07:30 UTC which is 13hrs from 18:30*/
-          `08:00:00.000Z`,
-          `10:00:00.000Z`,
-          `12:00:00.000Z`,
+          /*`04:00:00.000Z`, `05:30:00.000Z`, - Minimum time slot is 07:30 UTC which is 13hrs from 18:30*/
+          `07:30:00.000Z`,
+          `09:30:00.000Z`,
         ],
         {
           dateString: todayDateString,
@@ -1267,9 +1271,10 @@ describe("getSchedule", () => {
       expect(scheduleForEventWithBookingNotice10Hrs).toHaveTimeSlots(
         [
           /*`04:00:00.000Z`, - Minimum bookable time slot is 04:30 UTC which is 10hrs from 18:30 */
-          `05:00:00.000Z`,
-          `07:00:00.000Z`,
-          `09:00:00.000Z`,
+          `04:30:00.000Z`,
+          `06:30:00.000Z`,
+          `08:30:00.000Z`,
+          `10:30:00.000Z`,
         ],
         {
           dateString: todayDateString,
@@ -1470,23 +1475,23 @@ describe("getSchedule", () => {
 
       expect(schedule).toHaveTimeSlots(
         [
-          `04:05:00.000Z`,
-          `04:35:00.000Z`,
-          `05:05:00.000Z`,
-          `05:35:00.000Z`,
-          `06:05:00.000Z`,
-          `06:35:00.000Z`,
-          `07:05:00.000Z`,
-          `07:35:00.000Z`,
-          `08:05:00.000Z`,
-          `08:35:00.000Z`,
-          `09:05:00.000Z`,
-          `09:35:00.000Z`,
-          `10:05:00.000Z`,
-          `10:35:00.000Z`,
-          `11:05:00.000Z`,
-          `11:35:00.000Z`,
-          `12:05:00.000Z`,
+          `04:00:00.000Z`,
+          `04:30:00.000Z`,
+          `05:00:00.000Z`,
+          `05:30:00.000Z`,
+          `06:00:00.000Z`,
+          `06:30:00.000Z`,
+          `07:00:00.000Z`,
+          `07:30:00.000Z`,
+          `08:00:00.000Z`,
+          `08:30:00.000Z`,
+          `09:00:00.000Z`,
+          `09:30:00.000Z`,
+          `10:00:00.000Z`,
+          `10:30:00.000Z`,
+          `11:00:00.000Z`,
+          `11:30:00.000Z`,
+          `12:00:00.000Z`,
         ],
         {
           dateString: plus2DateString,

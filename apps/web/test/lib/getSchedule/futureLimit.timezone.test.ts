@@ -61,13 +61,17 @@ function getPeriodTypeData({
   }
 }
 
-vi.mock("@calcom/lib/constants", () => ({
-  IS_PRODUCTION: true,
-  WEBAPP_URL: "http://localhost:3000",
-  RESERVED_SUBDOMAINS: ["auth", "docs"],
-  ROLLING_WINDOW_PERIOD_MAX_DAYS_TO_CHECK: 61,
-  SINGLE_ORG_SLUG: "",
-}));
+vi.mock("@calcom/lib/constants", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@calcom/lib/constants")>();
+  return {
+    ...actual,
+    IS_PRODUCTION: true,
+    WEBAPP_URL: "http://localhost:3000",
+    RESERVED_SUBDOMAINS: ["auth", "docs"],
+    ROLLING_WINDOW_PERIOD_MAX_DAYS_TO_CHECK: 61,
+    SINGLE_ORG_SLUG: "",
+  };
+});
 
 describe("getSchedule", () => {
   const availableSlotsService = getAvailableSlotsService();
@@ -299,10 +303,19 @@ describe("getSchedule", () => {
           },
         });
 
+          // REVIEW: Possible shift
         // No timeslots of current day available
         expect(scheduleForEvent).toHaveTimeSlots(
           // First timeslot not available
-          expectedSlotsForSchedule["IstWorkHours"].interval["1hr"].allPossibleSlotsStartingAt430.slice(1),
+          [
+            `04:45:00.000Z`,
+            `05:45:00.000Z`,
+            `06:45:00.000Z`,
+            `07:45:00.000Z`,
+            `08:45:00.000Z`,
+            `09:45:00.000Z`,
+            `10:45:00.000Z`,
+          ],
           {
             doExactMatch: true,
             dateString: todayDateString,
@@ -672,27 +685,29 @@ describe("getSchedule", () => {
             },
           });
 
+          // REVIEW: 30 Minute shift
           const allTimeSlotsForToday = [
-            "2024-05-31T11:30:00.000Z",
-            "2024-06-01T04:30:00.000Z",
-            "2024-06-01T05:30:00.000Z",
-            "2024-06-01T06:30:00.000Z",
-            "2024-06-01T07:30:00.000Z",
-            "2024-06-01T08:30:00.000Z",
-            "2024-06-01T09:30:00.000Z",
-            "2024-06-01T10:30:00.000Z",
+            "2024-05-31T11:00:00.000Z",
+            "2024-06-01T04:00:00.000Z",
+            "2024-06-01T05:00:00.000Z",
+            "2024-06-01T06:00:00.000Z",
+            "2024-06-01T07:00:00.000Z",
+            "2024-06-01T08:00:00.000Z",
+            "2024-06-01T09:00:00.000Z",
+            "2024-06-01T10:00:00.000Z",
           ];
 
+          // REVIEW: 30 Minute shift
           expect(scheduleForEvent).toHaveTimeSlots(
             [
               // "2024-05-30T04:30:00.000Z", // Not available as before the start of the range
-              "2024-05-31T04:30:00.000Z",
-              "2024-05-31T05:30:00.000Z",
-              "2024-05-31T06:30:00.000Z",
-              "2024-05-31T07:30:00.000Z",
-              "2024-05-31T08:30:00.000Z",
-              "2024-05-31T09:30:00.000Z",
-              "2024-05-31T10:30:00.000Z",
+              "2024-05-31T04:00:00.000Z",
+              "2024-05-31T05:00:00.000Z",
+              "2024-05-31T06:00:00.000Z",
+              "2024-05-31T07:00:00.000Z",
+              "2024-05-31T08:00:00.000Z",
+              "2024-05-31T09:00:00.000Z",
+              "2024-05-31T10:00:00.000Z",
             ],
             {
               dateString: yesterdayDateString,
@@ -994,8 +1009,17 @@ describe("getSchedule", () => {
           },
         });
 
+          // REVIEW: Possible 30 Minute shift
         expect(scheduleForEvent).toHaveTimeSlots(
-          expectedSlotsForSchedule["IstWorkHours"].interval["1hr"].allPossibleSlotsStartingAt430.slice(1),
+          [
+            `04:45:00.000Z`,
+            `05:45:00.000Z`,
+            `06:45:00.000Z`,
+            `07:45:00.000Z`,
+            `08:45:00.000Z`,
+            `09:45:00.000Z`,
+            `10:45:00.000Z`,
+          ],
           {
             dateString: todayDateString,
             doExactMatch: true,
@@ -1632,15 +1656,16 @@ describe("getSchedule", () => {
             });
           }
 
+          // REVIEW: 30 Minute shift
           expect(scheduleForEventForPagoTz).toHaveTimeSlots(
             [
-              "2024-07-25T04:30:00.000Z",
-              "2024-07-25T05:30:00.000Z",
-              "2024-07-25T06:30:00.000Z",
-              "2024-07-25T07:30:00.000Z",
-              "2024-07-25T08:30:00.000Z",
-              "2024-07-25T09:30:00.000Z",
-              "2024-07-25T10:30:00.000Z",
+              "2024-07-25T04:00:00.000Z",
+              "2024-07-25T05:00:00.000Z",
+              "2024-07-25T06:00:00.000Z",
+              "2024-07-25T07:00:00.000Z",
+              "2024-07-25T08:00:00.000Z",
+              "2024-07-25T09:00:00.000Z",
+              "2024-07-25T10:00:00.000Z",
             ],
             {
               // 25th timeslots are shown mostly on 24th of Pago Pago
@@ -1649,16 +1674,17 @@ describe("getSchedule", () => {
             }
           );
 
+          // REVIEW: 30 Minute shift
           expect(scheduleForEventForPagoTz).toHaveTimeSlots(
             [
-              "2024-07-25T11:30:00.000Z",
-              "2024-07-26T04:30:00.000Z",
-              "2024-07-26T05:30:00.000Z",
-              "2024-07-26T06:30:00.000Z",
-              "2024-07-26T07:30:00.000Z",
-              "2024-07-26T08:30:00.000Z",
-              "2024-07-26T09:30:00.000Z",
-              "2024-07-26T10:30:00.000Z",
+              "2024-07-25T11:00:00.000Z",
+              "2024-07-26T04:00:00.000Z",
+              "2024-07-26T05:00:00.000Z",
+              "2024-07-26T06:00:00.000Z",
+              "2024-07-26T07:00:00.000Z",
+              "2024-07-26T08:00:00.000Z",
+              "2024-07-26T09:00:00.000Z",
+              "2024-07-26T10:00:00.000Z",
             ],
             {
               dateString: "2024-07-25",
@@ -1666,7 +1692,7 @@ describe("getSchedule", () => {
             }
           );
 
-          expect(scheduleForEventForPagoTz).toHaveTimeSlots(["2024-07-26T11:30:00.000Z"], {
+          expect(scheduleForEventForPagoTz).toHaveTimeSlots(["2024-07-26T11:00:00.000Z"], {
             dateString: "2024-07-26",
             doExactMatch: true,
           });

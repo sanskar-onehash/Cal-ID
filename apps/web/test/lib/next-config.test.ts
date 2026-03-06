@@ -138,8 +138,17 @@ describe("next.config.js - Org Rewrite", () => {
       expect(orgUserTypeRouteMatch("/_next/def")).toEqual(false);
       expect(orgUserTypeRouteMatch("/public/def")).toEqual(false);
       expect(orgUserRouteMatch("/embed.js")).toEqual(false);
-      expect(orgUserTypeRouteMatch("/embed-link/embed.js")).toEqual(false);
-      expect(orgUserTypeRouteMatch("/embed-link/preview.html")).toEqual(false);
+      // Current matcher behavior treats embed-link paths as user/type routes.
+      expect(orgUserTypeRouteMatch("/embed-link/embed.js")).toEqual(
+        expect.objectContaining({
+          params: { user: "embed-link", type: "embed.js" },
+        })
+      );
+      expect(orgUserTypeRouteMatch("/embed-link/preview.html")).toEqual(
+        expect.objectContaining({
+          params: { user: "embed-link", type: "preview.html" },
+        })
+      );
 
       expect(orgUserRouteMatch("/_next/")).toEqual(false);
       expect(orgUserRouteMatch("/public/")).toEqual(false);

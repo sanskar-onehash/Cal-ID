@@ -74,8 +74,8 @@ describe("handleNewBooking", () => {
           availability: [
             {
               days: [],
-              startTime: dayjs("1970-01-01").utc().hour(11).toDate(), // These times are stored with Z offset
-              endTime: dayjs("1970-01-01").utc().hour(12).toDate(), // These times are stored with Z offset
+              startTime: new Date("1970-01-01T11:00:00.000Z"),
+              endTime: new Date("1970-01-01T12:00:00.000Z"),
               date: plus1DateString,
             },
           ],
@@ -252,8 +252,8 @@ describe("handleNewBooking", () => {
           availability: [
             {
               days: [],
-              startTime: dayjs("1970-01-01").utc().hour(23).toDate(), // These times are stored with Z offset
-              endTime: dayjs("1970-01-01").utc().hour(23).minute(59).toDate(), // These times are stored with Z offset
+              startTime: new Date("1970-01-01T23:00:00.000Z"),
+              endTime: new Date("1970-01-01T23:59:00.000Z"),
               date: plus1DateString,
             },
           ],

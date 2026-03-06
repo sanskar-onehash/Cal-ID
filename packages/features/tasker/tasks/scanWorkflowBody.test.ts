@@ -53,8 +53,8 @@ describe("scanWorkflowBody", () => {
     vi.resetAllMocks();
     vi.stubGlobal("fetch", mockFetch);
     process.env.IFFY_API_KEY = "test-key";
-    prismaMock.workflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
-    prismaMock.workflow.findFirst.mockResolvedValue(mockWorkflow);
+    prismaMock.calIdWorkflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
+    prismaMock.calIdWorkflow.findFirst.mockResolvedValue(mockWorkflow);
   });
 
   it("should skip scan if IFFY_API_KEY is not set", async () => {
@@ -75,12 +75,12 @@ describe("scanWorkflowBody", () => {
       workflowStepIds: [1],
     });
 
-    prismaMock.workflowStep.findMany.mockResolvedValue([{ ...mockWorkflowStep, reminderBody: null }]);
-    prismaMock.workflow.findFirst.mockResolvedValue(mockWorkflow);
+    prismaMock.calIdWorkflowStep.findMany.mockResolvedValue([{ ...mockWorkflowStep, reminderBody: null }]);
+    prismaMock.calIdWorkflow.findFirst.mockResolvedValue(mockWorkflow);
 
     await scanWorkflowBody(payload);
 
-    expect(prismaMock.workflowStep.update).toHaveBeenCalledWith({
+    expect(prismaMock.calIdWorkflowStep.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { verifiedAt: expect.any(Date) },
     });
@@ -92,8 +92,8 @@ describe("scanWorkflowBody", () => {
       workflowStepIds: [1],
     });
 
-    prismaMock.workflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
-    prismaMock.workflow.findFirst.mockResolvedValue(mockWorkflow);
+    prismaMock.calIdWorkflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
+    prismaMock.calIdWorkflow.findFirst.mockResolvedValue(mockWorkflow);
     mockFetch.mockResolvedValue({
       json: () => Promise.resolve({ flagged: false }),
     });
@@ -114,7 +114,7 @@ describe("scanWorkflowBody", () => {
         passthrough: true,
       }),
     });
-    expect(prismaMock.workflowStep.update).toHaveBeenCalledWith({
+    expect(prismaMock.calIdWorkflowStep.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { verifiedAt: expect.any(Date) },
     });
@@ -126,7 +126,7 @@ describe("scanWorkflowBody", () => {
       workflowStepIds: [1],
     });
 
-    prismaMock.workflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
+    prismaMock.calIdWorkflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
     mockFetch.mockResolvedValue({
       json: () => Promise.resolve({ flagged: true }),
     });
@@ -147,7 +147,7 @@ describe("scanWorkflowBody", () => {
         passthrough: true,
       }),
     });
-    expect(prismaMock.workflowStep.update).not.toHaveBeenCalled();
+    expect(prismaMock.calIdWorkflowStep.update).not.toHaveBeenCalled();
     expect(lockUser).toHaveBeenCalledWith("userId", "1", LockReason.SPAM_WORKFLOW_BODY);
   });
 
@@ -157,8 +157,8 @@ describe("scanWorkflowBody", () => {
       workflowStepIds: [1],
     });
 
-    prismaMock.workflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
-    prismaMock.workflow.findFirst.mockResolvedValue(mockWorkflow);
+    prismaMock.calIdWorkflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
+    prismaMock.calIdWorkflow.findFirst.mockResolvedValue(mockWorkflow);
 
     await scanWorkflowBody(payload);
 
@@ -186,8 +186,8 @@ describe("scanWorkflowBody", () => {
       workflowStepIds: [1],
     });
 
-    prismaMock.workflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
-    prismaMock.workflow.findFirst.mockResolvedValue(null);
+    prismaMock.calIdWorkflowStep.findMany.mockResolvedValue([mockWorkflowStep]);
+    prismaMock.calIdWorkflow.findFirst.mockResolvedValue(null);
 
     await scanWorkflowBody(payload);
 
@@ -200,10 +200,10 @@ describe("scanWorkflowBody", () => {
       workflowStepIds: [1],
     });
 
-    prismaMock.workflowStep.findMany.mockResolvedValue([
+    prismaMock.calIdWorkflowStep.findMany.mockResolvedValue([
       { ...mockWorkflowStep, workflow: { user: { whitelistWorkflows: true } } },
     ]);
-    prismaMock.workflow.findFirst.mockResolvedValue(mockWorkflow);
+    prismaMock.calIdWorkflow.findFirst.mockResolvedValue(mockWorkflow);
     mockFetch.mockResolvedValue({
       json: () => Promise.resolve({ flagged: true }),
     });
@@ -224,7 +224,7 @@ describe("scanWorkflowBody", () => {
         passthrough: true,
       }),
     });
-    expect(prismaMock.workflowStep.update).toHaveBeenCalled();
+    expect(prismaMock.calIdWorkflowStep.update).toHaveBeenCalled();
     expect(scheduleWorkflowNotifications).toHaveBeenCalled();
 
     expect(lockUser).not.toHaveBeenCalled();
