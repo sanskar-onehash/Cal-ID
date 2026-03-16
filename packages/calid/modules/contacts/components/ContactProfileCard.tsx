@@ -16,7 +16,9 @@ interface ContactProfileCardProps {
   onEdit: () => void;
   onShare: () => void;
   onSchedule: () => void;
-  onDelete: () => void;
+  onDelete: () => Promise<void> | void;
+  isDeleting?: boolean;
+  deleteErrorMessage?: string | null;
 }
 
 export const ContactProfileCard = ({
@@ -25,12 +27,13 @@ export const ContactProfileCard = ({
   onShare,
   onSchedule,
   onDelete,
+  isDeleting = false,
+  deleteErrorMessage,
 }: ContactProfileCardProps) => {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
-  const handleDeleteConfirm = () => {
-    setConfirmDeleteOpen(false);
-    onDelete();
+  const handleDeleteConfirm = async () => {
+    await onDelete();
   };
 
   return (
@@ -88,6 +91,8 @@ export const ContactProfileCard = ({
         onOpenChange={setConfirmDeleteOpen}
         contactName={contact.name}
         onConfirm={handleDeleteConfirm}
+        isDeleting={isDeleting}
+        errorMessage={deleteErrorMessage}
       />
     </>
   );

@@ -8,9 +8,18 @@ interface ContactNotesCardProps {
   onNotesChange: (notes: string) => void;
   hasChanges: boolean;
   onSave: () => void;
+  isSaving?: boolean;
+  saveErrorMessage?: string | null;
 }
 
-export const ContactNotesCard = ({ notes, onNotesChange, hasChanges, onSave }: ContactNotesCardProps) => {
+export const ContactNotesCard = ({
+  notes,
+  onNotesChange,
+  hasChanges,
+  onSave,
+  isSaving = false,
+  saveErrorMessage,
+}: ContactNotesCardProps) => {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -25,9 +34,11 @@ export const ContactNotesCard = ({ notes, onNotesChange, hasChanges, onSave }: C
           onChange={(event) => onNotesChange(event.target.value)}
           placeholder="Add notes about this contact..."
           className="text-sm"
+          disabled={isSaving}
         />
+        {saveErrorMessage ? <p className="text-destructive mt-2 text-xs">{saveErrorMessage}</p> : null}
         {hasChanges ? (
-          <Button className="mt-2" onClick={onSave}>
+          <Button className="mt-2" onClick={onSave} loading={isSaving} disabled={isSaving}>
             Save Notes
           </Button>
         ) : null}

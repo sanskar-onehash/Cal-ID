@@ -1,29 +1,19 @@
 import { useMemo, useState } from "react";
 
-import { CONTACTS_PAGE_SIZE } from "../constants";
-import { createContactFromDraft, mergeContactDraft } from "../mappers/contactMappers";
-import type { Contact, ContactSortDirection, ContactSortKey } from "../types";
-import { filterAndSortContacts, paginateContacts } from "../utils/contactUtils";
+import { useDebounce } from "@calcom/lib/hooks/useDebounce";
 
-export const useContactsListState = (initialContacts: Contact[]) => {
-  const [contacts, setContacts] = useState<Contact[]>(initialContacts);
+import { CONTACTS_PAGE_SIZE } from "../constants";
+import type { ContactSortDirection, ContactSortKey } from "../types";
+
+export const useContactsListState = () => {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<ContactSortKey>("name");
   const [sortDirection, setSortDirection] = useState<ContactSortDirection>("asc");
   const [page, setPage] = useState(1);
-  const [loading] = useState(false);
 
-  const filteredContacts = useMemo(
-    () => filterAndSortContacts(contacts, search, sortKey, sortDirection),
-    [contacts, search, sortKey, sortDirection]
-  );
-
-  const totalPages = Math.max(1, Math.ceil(filteredContacts.length / CONTACTS_PAGE_SIZE));
-
-  const pagedContacts = useMemo(
-    () => paginateContacts(filteredContacts, page, CONTACTS_PAGE_SIZE),
-    [filteredContacts, page]
-  );
+  const debouncedSearch = useDebounce(search, 350);
+  const limit = CONTACTS_PAGE_SIZE;
+  const offset = (page - 1) * limit;
 
   const onSearchChange = (value: string) => {
     setSearch(value);
@@ -40,32 +30,27 @@ export const useContactsListState = (initialContacts: Contact[]) => {
     setPage(1);
   };
 
-  const saveContact = (draft: Partial<Contact>) => {
-    if (draft.id) {
-      setContacts((current) =>
-        current.map((contact) => (contact.id === draft.id ? mergeContactDraft(contact, draft) : contact))
-      );
-      return;
-    }
-
-    const newContact = createContactFromDraft(draft);
-    setContacts((current) => [newContact, ...current]);
-    setPage(1);
-  };
+  const queryInput = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      sortBy: sortKey,
+      sortDirection,
+      limit,
+      offset,
+    }),
+    [debouncedSearch, sortDirection, sortKey, limit, offset]
+  );
 
   return {
-    contacts,
-    loading,
     search,
     sortKey,
     sortDirection,
     page,
-    totalPages,
-    filteredContacts,
-    pagedContacts,
+    limit,
+    offset,
+    queryInput,
     onSearchChange,
     onSortChange,
     setPage,
-    saveContact,
   };
 };

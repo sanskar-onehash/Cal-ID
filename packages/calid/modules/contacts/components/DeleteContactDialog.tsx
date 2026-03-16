@@ -15,7 +15,9 @@ interface DeleteContactDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactName: string;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void> | void;
+  isDeleting?: boolean;
+  errorMessage?: string | null;
 }
 
 export const DeleteContactDialog = ({
@@ -23,6 +25,8 @@ export const DeleteContactDialog = ({
   onOpenChange,
   contactName,
   onConfirm,
+  isDeleting = false,
+  errorMessage,
 }: DeleteContactDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -33,11 +37,12 @@ export const DeleteContactDialog = ({
             This action cannot be undone. All meeting history will be preserved.
           </DialogDescription>
         </DialogHeader>
+        {errorMessage ? <p className="text-destructive text-xs">{errorMessage}</p> : null}
         <DialogFooter>
-          <Button color="secondary" onClick={() => onOpenChange(false)}>
+          <Button color="secondary" onClick={() => onOpenChange(false)} disabled={isDeleting}>
             Cancel
           </Button>
-          <Button color="destructive" onClick={onConfirm}>
+          <Button color="destructive" onClick={onConfirm} loading={isDeleting} disabled={isDeleting}>
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </Button>
         </DialogFooter>

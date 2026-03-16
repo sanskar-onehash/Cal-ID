@@ -14,13 +14,15 @@ import { Label } from "@calid/features/ui/components/label";
 import { Save, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import type { Contact } from "../types";
+import type { Contact, ContactDraft } from "../types";
 
 interface AddEditContactModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contact?: Contact | null;
-  onSave: (draft: Partial<Contact>) => void;
+  onSave: (draft: ContactDraft) => Promise<void> | void;
+  isSubmitting?: boolean;
+  errorMessage?: string | null;
 }
 
 interface ContactFormState {
@@ -30,7 +32,14 @@ interface ContactFormState {
   notes: string;
 }
 
-export const AddEditContactModal = ({ open, onOpenChange, contact, onSave }: AddEditContactModalProps) => {
+export const AddEditContactModal = ({
+  open,
+  onOpenChange,
+  contact,
+  onSave,
+  isSubmitting = false,
+  errorMessage,
+}: AddEditContactModalProps) => {
   const isEditMode = Boolean(contact);
 
   const [form, setForm] = useState<ContactFormState>({
@@ -82,17 +91,15 @@ export const AddEditContactModal = ({ open, onOpenChange, contact, onSave }: Add
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) {
       return;
     }
 
-    onSave({
+    await onSave({
       ...form,
       ...(contact ? { id: contact.id } : {}),
     });
-
-    onOpenChange(false);
   };
 
   return (
@@ -159,14 +166,18 @@ export const AddEditContactModal = ({ open, onOpenChange, contact, onSave }: Add
               className="text-sm"
             />
           </div>
+
+          {errorMessage ? <p className="text-destructive text-xs">{errorMessage}</p> : null}
         </div>
 
         <DialogFooter>
-          <Button color="secondary" onClick={() => onOpenChange(false)} StartIcon="x">
+          <Button color="secondary" onClick={() => onOpenChange(false)} StartIcon="x" disabled={isSubmitting}>
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
+            loading={isSubmitting}
+            disabled={isSubmitting}
             CustomStartIcon={
               isEditMode ? <Save className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />
             }>

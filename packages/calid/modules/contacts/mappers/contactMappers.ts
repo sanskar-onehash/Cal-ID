@@ -1,31 +1,43 @@
-import type { Contact } from "../types";
+import type { Contact, ContactCreateInput, ContactDraft, ContactRow, ContactUpdateInput } from "../types";
 import { getContactInitials } from "../utils/contactUtils";
 
-export const createContactFromDraft = (draft: Partial<Contact>): Contact => {
-  const name = draft.name?.trim() ?? "";
+const parseDate = (value: Date | string) => {
+  if (value instanceof Date) {
+    return value;
+  }
 
-  return {
-    id: `${Date.now()}`,
-    name,
-    email: draft.email?.trim() ?? "",
-    phone: draft.phone?.trim() ?? "",
-    notes: draft.notes?.trim() ?? "",
-    avatar: getContactInitials(name),
-    createdAt: new Date(),
-    lastMeeting: null,
-  };
+  return new Date(value);
 };
 
-export const mergeContactDraft = (contact: Contact, draft: Partial<Contact>): Contact => {
-  const mergedName = draft.name?.trim() ?? contact.name;
+export const mapContactRowToContact = (row: ContactRow): Contact => ({
+  id: row.id,
+  name: row.name,
+  email: row.email,
+  phone: row.phone,
+  notes: row.notes,
+  avatar: getContactInitials(row.name),
+  createdAt: parseDate(row.createdAt),
+  updatedAt: parseDate(row.updatedAt),
+  lastMeeting: null,
+});
 
-  return {
-    ...contact,
-    ...draft,
-    name: mergedName,
-    email: draft.email?.trim() ?? contact.email,
-    phone: draft.phone?.trim() ?? contact.phone,
-    notes: draft.notes?.trim() ?? contact.notes,
-    avatar: draft.avatar ?? getContactInitials(mergedName),
-  };
-};
+export const mapContactDraftToCreateInput = (draft: ContactDraft): ContactCreateInput => ({
+  name: draft.name.trim(),
+  email: draft.email.trim(),
+  phone: draft.phone.trim(),
+  notes: draft.notes.trim(),
+});
+
+export const mapContactDraftToUpdateInput = (draft: ContactDraft): ContactUpdateInput => ({
+  id: (() => {
+    if (draft.id === undefined) {
+      throw new Error("Missing contact id for update");
+    }
+
+    return draft.id;
+  })(),
+  name: draft.name.trim(),
+  email: draft.email.trim(),
+  phone: draft.phone.trim(),
+  notes: draft.notes.trim(),
+});

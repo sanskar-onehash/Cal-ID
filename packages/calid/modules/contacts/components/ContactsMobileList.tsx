@@ -12,7 +12,7 @@ import { ContactAvatar } from "./ContactAvatar";
 
 interface ContactsMobileListProps {
   contacts: Contact[];
-  onRowClick: (contactId: string) => void;
+  onRowClick: (contactId: number) => void;
   onShare: (contact: Contact) => void;
   onSchedule: (contact: Contact) => void;
 }

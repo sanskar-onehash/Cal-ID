@@ -16,15 +16,16 @@ import {
 import { format } from "date-fns";
 import { CalendarPlus, MoreHorizontal, Share2, User } from "lucide-react";
 
-import type { Contact, ContactSortKey } from "../types";
+import type { Contact, ContactSortDirection, ContactSortKey } from "../types";
 import { ContactAvatar } from "./ContactAvatar";
 import { ContactsSortHeader } from "./ContactsSortHeader";
 
 interface ContactsTableProps {
   contacts: Contact[];
   sortKey: ContactSortKey;
+  sortDirection: ContactSortDirection;
   onSortChange: (key: ContactSortKey) => void;
-  onRowClick: (contactId: string) => void;
+  onRowClick: (contactId: number) => void;
   onShare: (contact: Contact) => void;
   onSchedule: (contact: Contact) => void;
 }
@@ -32,6 +33,7 @@ interface ContactsTableProps {
 export const ContactsTable = ({
   contacts,
   sortKey,
+  sortDirection,
   onSortChange,
   onRowClick,
   onShare,
@@ -47,6 +49,7 @@ export const ContactsTable = ({
                 label="Name"
                 field="name"
                 activeSortKey={sortKey}
+                sortDirection={sortDirection}
                 onSortChange={onSortChange}
               />
             </TableHead>
@@ -56,17 +59,11 @@ export const ContactsTable = ({
                 label="Created"
                 field="createdAt"
                 activeSortKey={sortKey}
+                sortDirection={sortDirection}
                 onSortChange={onSortChange}
               />
             </TableHead>
-            <TableHead>
-              <ContactsSortHeader
-                label="Last Meeting"
-                field="lastMeeting"
-                activeSortKey={sortKey}
-                onSortChange={onSortChange}
-              />
-            </TableHead>
+            <TableHead>Last Meeting</TableHead>
             <TableHead className="w-[50px]" />
           </TableRow>
         </TableHeader>
