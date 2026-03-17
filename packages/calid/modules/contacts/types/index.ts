@@ -46,6 +46,7 @@ export interface ContactsListMeta {
 
 export interface ContactMeeting {
   id: number;
+  instanceId: string;
   contactId: number;
   title: string;
   date: Date;

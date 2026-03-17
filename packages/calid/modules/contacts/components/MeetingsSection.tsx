@@ -47,7 +47,7 @@ export const MeetingsSection = ({
           ) : (
             <div className="space-y-2">
               {meetings.map((meeting) => (
-                <MeetingCard key={meeting.id} meeting={meeting} />
+                <MeetingCard key={meeting.instanceId} meeting={meeting} />
               ))}
             </div>
           )}

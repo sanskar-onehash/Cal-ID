@@ -55,6 +55,7 @@ export const mapContactMeetingRowToContactMeeting = (
   meeting: ContactMeetingRow
 ): ContactMeeting => ({
   id: meeting.id,
+  instanceId: meeting.instanceId,
   contactId,
   title: meeting.title,
   date: parseDate(meeting.date),

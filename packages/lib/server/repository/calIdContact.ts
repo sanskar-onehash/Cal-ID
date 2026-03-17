@@ -1,5 +1,9 @@
+import { generateOccurrencesFromRRule } from "@calid/features/modules/teams/lib/recurrenceUtil";
+
 import { prisma, type PrismaClient } from "@calcom/prisma";
 import type { Prisma } from "@calcom/prisma/client";
+import { recurringEventSchema } from "@calcom/prisma/zod-utils";
+import type { RecurringEvent } from "@calcom/types/Calendar";
 
 export type CalIdContactSortBy = "name" | "email" | "createdAt" | "updatedAt";
 export type CalIdContactSortDirection = "asc" | "desc";
@@ -22,6 +26,7 @@ export type CalIdContactMeetingStatus = "upcoming" | "completed" | "cancelled";
 
 export type CalIdContactMeetingDTO = {
   id: number;
+  instanceId: string;
   title: string;
   date: Date;
   duration: number;
@@ -36,6 +41,7 @@ const bookingMeetingSelect = {
   startTime: true,
   endTime: true,
   status: true,
+  recurringEventId: true,
   location: true,
   metadata: true,
   references: {
@@ -231,10 +237,9 @@ export class CalIdContactRepository {
       },
       select: bookingMeetingSelect,
       orderBy: [{ startTime: "desc" }, { id: "desc" }],
-      take: limit,
     });
 
-    const rows: CalIdContactMeetingDTO[] = bookings.map((booking) => {
+    const rows = bookings.flatMap<CalIdContactMeetingDTO>((booking) => {
       const startTime = booking.startTime;
       const endTime = booking.endTime;
       const duration = Math.max(1, Math.round((endTime.getTime() - startTime.getTime()) / 60000));
@@ -264,20 +269,92 @@ export class CalIdContactRepository {
       const latestInternalNote = booking.internalNote[0]?.text ?? null;
       const notes = meetingNoteFromMetadata ?? latestInternalNote;
 
-      return {
+      const rawRecurringEvent =
+        booking.recurringEventId === null &&
+        booking.metadata &&
+        typeof booking.metadata === "object" &&
+        !Array.isArray(booking.metadata)
+          ? "recurringEvent" in booking.metadata
+            ? booking.metadata.recurringEvent
+            : null
+          : null;
+      const parsedRecurringEvent = recurringEventSchema.safeParse(rawRecurringEvent);
+      const recurringEvent =
+        parsedRecurringEvent.success && booking.recurringEventId === null
+          ? (parsedRecurringEvent.data as RecurringEvent)
+          : null;
+
+      const createMeetingRow = ({
+        date,
+        status,
+        instanceSuffix,
+      }: {
+        date: Date;
+        status: CalIdContactMeetingStatus;
+        instanceSuffix: string;
+      }): CalIdContactMeetingDTO => ({
         id: booking.id,
+        instanceId: `${booking.id}:${instanceSuffix}`,
         title: booking.title,
-        date: startTime,
+        date,
         duration,
         status,
         meetingLink,
         notes,
-      };
+      });
+
+      if (recurringEvent) {
+        const { occurrences, cancelledDates } = generateOccurrencesFromRRule(recurringEvent, startTime);
+        const hasCancelledOrRejectedStatus = bookingStatus === "cancelled" || bookingStatus === "rejected";
+
+        const occurrenceRows = occurrences.map((occurrenceDate) => {
+          const occurrenceEndTime = new Date(occurrenceDate.getTime() + duration * 60000);
+          const occurrenceStatus: CalIdContactMeetingStatus = hasCancelledOrRejectedStatus
+            ? "cancelled"
+            : occurrenceEndTime.getTime() >= now
+            ? "upcoming"
+            : "completed";
+
+          return createMeetingRow({
+            date: occurrenceDate,
+            status: occurrenceStatus,
+            instanceSuffix: occurrenceDate.toISOString(),
+          });
+        });
+
+        const cancelledOccurrenceRows = cancelledDates.map((cancelledDate) =>
+          createMeetingRow({
+            date: cancelledDate,
+            status: "cancelled",
+            instanceSuffix: `cancelled:${cancelledDate.toISOString()}`,
+          })
+        );
+
+        if (occurrenceRows.length > 0 || cancelledOccurrenceRows.length > 0) {
+          return [...occurrenceRows, ...cancelledOccurrenceRows];
+        }
+      }
+
+      return [
+        createMeetingRow({
+          date: startTime,
+          status,
+          instanceSuffix: startTime.toISOString(),
+        }),
+      ];
+    });
+
+    rows.sort((first, second) => {
+      const timeDiff = second.date.getTime() - first.date.getTime();
+      if (timeDiff !== 0) {
+        return timeDiff;
+      }
+      return second.id - first.id;
     });
 
     return {
       contact,
-      rows,
+      rows: rows.slice(0, limit),
     };
   }
 }
