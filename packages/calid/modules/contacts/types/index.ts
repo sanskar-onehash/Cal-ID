@@ -58,12 +58,6 @@ export interface ContactMeeting {
 export type ContactMeetingRow =
   RouterOutputs["viewer"]["calIdContacts"]["getMeetingsByContactId"]["rows"][number];
 
-export interface MeetingTypeOption {
-  id: string;
-  title: string;
-  duration: number;
-}
-
 export interface ContactShareOption {
   id: string;
   label: string;
