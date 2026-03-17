@@ -2,6 +2,7 @@ import { generateOccurrencesFromRRule } from "@calid/features/modules/teams/lib/
 
 import { prisma, type PrismaClient } from "@calcom/prisma";
 import type { Prisma } from "@calcom/prisma/client";
+import { BookingStatus } from "@calcom/prisma/enums";
 import { recurringEventSchema } from "@calcom/prisma/zod-utils";
 import type { RecurringEvent } from "@calcom/types/Calendar";
 
@@ -22,6 +23,10 @@ const calIdContactSelect = {
 export type CalIdContactDTO = Prisma.CalIdContactGetPayload<{
   select: typeof calIdContactSelect;
 }>;
+
+export type CalIdContactListRowDTO = CalIdContactDTO & {
+  lastMeetingAt: Date | null;
+};
 
 export type CalIdContactMeetingStatus = "upcoming" | "completed" | "cancelled";
 
@@ -69,6 +74,35 @@ const bookingMeetingSelect = {
 export class CalIdContactRepository {
   constructor(private readonly prismaClient: PrismaClient = prisma) {}
 
+  private buildAttendeeMatchers({
+    email,
+    phone,
+  }: {
+    email: string;
+    phone: string;
+  }): Prisma.AttendeeWhereInput[] {
+    const attendeeMatchers: Prisma.AttendeeWhereInput[] = [];
+    const normalizedEmail = email.trim();
+    const normalizedPhone = phone.trim();
+
+    if (normalizedEmail.length > 0) {
+      attendeeMatchers.push({
+        email: {
+          equals: normalizedEmail,
+          mode: "insensitive",
+        },
+      });
+    }
+
+    if (normalizedPhone.length > 0) {
+      attendeeMatchers.push({
+        phoneNumber: normalizedPhone,
+      });
+    }
+
+    return attendeeMatchers;
+  }
+
   async listByUserId({
     userId,
     search,
@@ -115,8 +149,52 @@ export class CalIdContactRepository {
       this.prismaClient.calIdContact.count({ where }),
     ]);
 
+    const now = new Date();
+
+    const rowsWithLastMeeting: CalIdContactListRowDTO[] = await Promise.all(
+      rows.map(async (row) => {
+        const attendeeMatchers = this.buildAttendeeMatchers({
+          email: row.email,
+          phone: row.phone,
+        });
+
+        if (attendeeMatchers.length === 0) {
+          return {
+            ...row,
+            lastMeetingAt: null,
+          };
+        }
+
+        const lastMeeting = await this.prismaClient.booking.findFirst({
+          where: {
+            userId,
+            endTime: {
+              lt: now,
+            },
+            status: {
+              notIn: [BookingStatus.CANCELLED, BookingStatus.REJECTED],
+            },
+            attendees: {
+              some: {
+                OR: attendeeMatchers,
+              },
+            },
+          },
+          select: {
+            endTime: true,
+          },
+          orderBy: [{ endTime: "desc" }, { id: "desc" }],
+        });
+
+        return {
+          ...row,
+          lastMeetingAt: lastMeeting?.endTime ?? null,
+        };
+      })
+    );
+
     return {
-      rows,
+      rows: rowsWithLastMeeting,
       totalRowCount,
     };
   }
@@ -207,22 +285,16 @@ export class CalIdContactRepository {
       return null;
     }
 
-    const normalizedEmail = contact.email.trim();
-    const normalizedPhone = contact.phone.trim();
+    const attendeeMatchers = this.buildAttendeeMatchers({
+      email: contact.email,
+      phone: contact.phone,
+    });
 
-    const attendeeMatchers: Prisma.AttendeeWhereInput[] = [
-      {
-        email: {
-          equals: normalizedEmail,
-          mode: "insensitive",
-        },
-      },
-    ];
-
-    if (normalizedPhone.length > 0) {
-      attendeeMatchers.push({
-        phoneNumber: normalizedPhone,
-      });
+    if (attendeeMatchers.length === 0) {
+      return {
+        contact,
+        rows: [],
+      };
     }
 
     const now = Date.now();

@@ -19,7 +19,12 @@ export interface Contact {
   lastMeeting: Date | null;
 }
 
-export type ContactRow = RouterOutputs["viewer"]["calIdContacts"]["list"]["rows"][number];
+type ContactListRow = RouterOutputs["viewer"]["calIdContacts"]["list"]["rows"][number];
+type ContactDetailRow = RouterOutputs["viewer"]["calIdContacts"]["getById"];
+
+export type ContactRow = (ContactListRow | ContactDetailRow) & {
+  lastMeetingAt?: Date | string | null;
+};
 
 export type ContactCreateInput = RouterInputs["viewer"]["calIdContacts"]["create"];
 

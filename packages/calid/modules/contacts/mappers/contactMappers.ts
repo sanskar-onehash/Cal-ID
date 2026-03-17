@@ -27,7 +27,7 @@ export const mapContactRowToContact = (row: ContactRow): Contact => ({
   avatar: getContactInitials(row.name),
   createdAt: parseDate(row.createdAt),
   updatedAt: parseDate(row.updatedAt),
-  lastMeeting: null,
+  lastMeeting: row.lastMeetingAt ? parseDate(row.lastMeetingAt) : null,
 });
 
 export const mapContactDraftToCreateInput = (draft: ContactDraft): ContactCreateInput => ({
