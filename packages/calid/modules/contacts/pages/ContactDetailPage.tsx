@@ -20,11 +20,29 @@ import {
   mapContactMeetingRowToContactMeeting,
   mapContactRowToContact,
 } from "../mappers/contactMappers";
-import type { ContactDraft } from "../types";
+import type { ContactDraft, ContactMeeting } from "../types";
 
 interface ContactDetailPageProps {
   contactId: string;
 }
+
+const sortMeetingsByStartTimeDesc = (first: ContactMeeting, second: ContactMeeting, isDesc = true) => {
+  const timeDiff = second.date.getTime() - first.date.getTime();
+  if (timeDiff !== 0) {
+    return isDesc ? timeDiff : -timeDiff;
+  }
+
+  return second.id - first.id;
+};
+
+const sortMeetingsByStartTimeInc = (first: ContactMeeting, second: ContactMeeting, isDesc = true) => {
+  const timeDiff = first.date.getTime() - second.date.getTime();
+  if (timeDiff !== 0) {
+    return isDesc ? timeDiff : -timeDiff;
+  }
+
+  return first.id - second.id;
+};
 
 const ContactDetailPage = ({ contactId }: ContactDetailPageProps) => {
   const router = useRouter();
@@ -62,12 +80,18 @@ const ContactDetailPage = ({ contactId }: ContactDetailPageProps) => {
     () =>
       (meetingsQuery.data?.rows ?? [])
         .map((meeting) => mapContactMeetingRowToContactMeeting(numericContactId, meeting))
-        .sort((first, second) => second.date.getTime() - first.date.getTime()),
+        .sort(sortMeetingsByStartTimeDesc),
     [meetingsQuery.data?.rows, numericContactId]
   );
 
-  const upcomingMeetings = meetings.filter((meeting) => meeting.status === "upcoming");
-  const pastMeetings = meetings.filter((meeting) => meeting.status !== "upcoming");
+  const upcomingMeetings = useMemo(
+    () => meetings.filter((meeting) => meeting.status === "upcoming").sort(sortMeetingsByStartTimeInc),
+    [meetings]
+  );
+  const pastMeetings = useMemo(
+    () => meetings.filter((meeting) => meeting.status !== "upcoming").sort(sortMeetingsByStartTimeDesc),
+    [meetings]
+  );
 
   const [notes, setNotes] = useState("");
   const [editOpen, setEditOpen] = useState(false);
