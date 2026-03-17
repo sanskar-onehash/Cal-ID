@@ -13,11 +13,15 @@ import { useMutation } from "@tanstack/react-query";
 import { addMinutes, format, isBefore, parseISO, startOfDay } from "date-fns";
 import { ArrowLeft, ArrowRight, CalendarIcon, Check, Clock, Loader2, Users, Video } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
 
 import { isAttendeeInputRequired } from "@calcom/app-store/locations";
+import { BookingFields } from "@calcom/features/bookings/Booker/components/BookEventForm/BookingFields";
 import { useTimePreferences } from "@calcom/features/bookings/lib";
 import { SystemField } from "@calcom/features/bookings/lib/SystemField";
 import { createBooking } from "@calcom/features/bookings/lib/create-booking";
+import getBookingResponsesSchema from "@calcom/features/bookings/lib/getBookingResponsesSchema";
+import { getPaymentAppData } from "@calcom/lib/getPaymentAppData";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { TimeFormat } from "@calcom/lib/timeFormat";
 import { trpc } from "@calcom/trpc/react";
@@ -30,6 +34,66 @@ interface ScheduleMeetingModalProps {
   onOpenChange: (open: boolean) => void;
   contact: Contact | null;
 }
+
+type BookingFieldsFormValues = {
+  responses: Record<string, unknown>;
+};
+
+const DEFAULT_STEPS = ["Event Type", "Date & Time", "Guests", "Confirm"];
+const STEPS_WITH_BOOKING_FIELDS = ["Event Type", "Date & Time", "Booking Fields", "Guests", "Confirm"];
+
+const HANDLED_BOOKING_FIELD_NAMES = new Set([
+  SystemField.Enum.name,
+  SystemField.Enum.email,
+  SystemField.Enum.guests,
+  SystemField.Enum.location,
+]);
+
+const getIssueFieldName = (message?: string) => {
+  if (!message) {
+    return null;
+  }
+
+  const match = message.match(/^\{([^}]+)\}/);
+  return match?.[1] ?? null;
+};
+
+const isFieldVisibleInBookingView = (views?: { id: string }[]) => {
+  if (!views || views.length === 0) {
+    return true;
+  }
+
+  return views.some((view) => view.id === "booking");
+};
+
+const normalizeBookingResponses = (responses: Record<string, unknown>) => {
+  return Object.entries(responses).reduce<Record<string, unknown>>((acc, [key, value]) => {
+    if (typeof value === "string") {
+      acc[key] = value.trim();
+      return acc;
+    }
+
+    if (Array.isArray(value)) {
+      acc[key] = value.map((item) => (typeof item === "string" ? item.trim() : item));
+      return acc;
+    }
+
+    if (value && typeof value === "object") {
+      const normalizedObject = Object.entries(value as Record<string, unknown>).reduce<
+        Record<string, unknown>
+      >((objectAcc, [objectKey, objectValue]) => {
+        objectAcc[objectKey] = typeof objectValue === "string" ? objectValue.trim() : objectValue;
+        return objectAcc;
+      }, {});
+
+      acc[key] = normalizedObject;
+      return acc;
+    }
+
+    acc[key] = value;
+    return acc;
+  }, {});
+};
 
 export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMeetingModalProps) => {
   const { i18n, t } = useLocale();
@@ -44,6 +108,12 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
   const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
   const [additionalGuests, setAdditionalGuests] = useState("");
   const [bookingErrorMessage, setBookingErrorMessage] = useState<string | null>(null);
+
+  const bookingFieldsForm = useForm<BookingFieldsFormValues>({
+    defaultValues: {
+      responses: {},
+    },
+  });
 
   const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
@@ -69,6 +139,58 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
   );
 
   const selectedEventDetail = selectedEventQuery.data?.eventType;
+
+  const bookingFieldsStepSource = useMemo(() => {
+    if (!selectedEventDetail) {
+      return [];
+    }
+
+    return selectedEventDetail.bookingFields.filter((field) => {
+      if (field.hidden) {
+        return false;
+      }
+
+      if (field.name === SystemField.Enum.rescheduleReason) {
+        return false;
+      }
+
+      if (!isFieldVisibleInBookingView(field.views)) {
+        return false;
+      }
+
+      return !HANDLED_BOOKING_FIELD_NAMES.has(field.name);
+    });
+  }, [selectedEventDetail]);
+
+  const bookingFieldsStepFields = useMemo(
+    () => bookingFieldsStepSource.map((field) => ({ ...field, views: undefined })),
+    [bookingFieldsStepSource]
+  );
+
+  const hasExtendedBookingFields = bookingFieldsStepSource.length > 0;
+
+  const steps = hasExtendedBookingFields ? STEPS_WITH_BOOKING_FIELDS : DEFAULT_STEPS;
+  const EVENT_TYPE_STEP = 1;
+  const DATE_TIME_STEP = 2;
+  const BOOKING_FIELDS_STEP = 3;
+  const GUESTS_STEP = hasExtendedBookingFields ? 4 : 3;
+  const CONFIRM_STEP = hasExtendedBookingFields ? 5 : 4;
+  const BACK_FROM_GUESTS_STEP = hasExtendedBookingFields ? BOOKING_FIELDS_STEP : DATE_TIME_STEP;
+
+  const defaultBookingFieldResponses = useMemo(() => {
+    return bookingFieldsStepSource.reduce<Record<string, unknown>>((defaults, field) => {
+      if (field.name === SystemField.Enum.attendeePhoneNumber && contact?.phone?.trim()) {
+        defaults[field.name] = contact.phone.trim();
+      }
+      return defaults;
+    }, {});
+  }, [bookingFieldsStepSource, contact?.phone]);
+
+  useEffect(() => {
+    bookingFieldsForm.reset({
+      responses: defaultBookingFieldResponses,
+    });
+  }, [bookingFieldsForm, defaultBookingFieldResponses]);
 
   const selectedDateKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
 
@@ -142,25 +264,12 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
       return null;
     }
 
-    if (selectedEventDetail.price > 0) {
+    const paymentAppData = getPaymentAppData(selectedEventDetail);
+    const isPaidEventType =
+      selectedEventDetail.price > 0 && !Number.isNaN(paymentAppData.price) && paymentAppData.price > 0;
+
+    if (isPaidEventType) {
       return "Paid event types are not supported in Contacts scheduling yet.";
-    }
-
-    const supportedRequiredFieldNames = new Set([
-      SystemField.Enum.name,
-      SystemField.Enum.email,
-      SystemField.Enum.guests,
-      SystemField.Enum.notes,
-      SystemField.Enum.location,
-      SystemField.Enum.attendeePhoneNumber,
-    ]);
-
-    const unsupportedRequiredField = selectedEventDetail.bookingFields.find(
-      (field) => field.required && !field.hidden && !supportedRequiredFieldNames.has(field.name)
-    );
-
-    if (unsupportedRequiredField) {
-      return "This event type has required booking fields that are not supported in Contacts scheduling yet.";
     }
 
     const locationField = selectedEventDetail.bookingFields.find(
@@ -184,13 +293,6 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
       }
     }
 
-    const attendeePhoneField = selectedEventDetail.bookingFields.find(
-      (field) => field.name === SystemField.Enum.attendeePhoneNumber && field.required && !field.hidden
-    );
-    if (attendeePhoneField && !contact.phone.trim()) {
-      return "This event type requires attendee phone, but this contact has no phone number.";
-    }
-
     return null;
   }, [contact, selectedEventDetail]);
 
@@ -211,17 +313,78 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
 
   const resetAndClose = (nextOpen: boolean) => {
     if (!nextOpen) {
-      setStep(1);
+      setStep(EVENT_TYPE_STEP);
       setSelectedEventId(null);
       setSelectedDate(undefined);
       setSelectedDuration(null);
       setSelectedSlotTime(null);
       setAdditionalGuests("");
       setBookingErrorMessage(null);
+      bookingFieldsForm.reset({ responses: {} });
       createBookingMutation.reset();
     }
 
     onOpenChange(nextOpen);
+  };
+
+  const validateBookingFields = async (responses: Record<string, unknown>) => {
+    if (bookingFieldsStepSource.length === 0) {
+      bookingFieldsForm.clearErrors("responses");
+      return true;
+    }
+    if (!contact) {
+      return false;
+    }
+
+    const normalizedResponses = normalizeBookingResponses(responses);
+
+    const schema = getBookingResponsesSchema({
+      bookingFields: bookingFieldsStepSource,
+      view: "booking",
+    });
+
+    const responsesForValidation: Record<string, unknown> = {
+      name: contact.name,
+      email: contact.email,
+      ...normalizedResponses,
+    };
+
+    const validation = await schema.safeParseAsync(responsesForValidation);
+    bookingFieldsForm.clearErrors("responses");
+
+    if (!validation.success) {
+      const bookingFieldStepNames = new Set(bookingFieldsStepSource.map((field) => field.name));
+      const relevantIssue =
+        validation.error.issues.find((issue) => {
+          const issueFieldName = getIssueFieldName(issue.message);
+          return Boolean(issueFieldName && bookingFieldStepNames.has(issueFieldName));
+        }) ?? null;
+
+      if (!relevantIssue) {
+        return true;
+      }
+
+      const issueMessage = relevantIssue.message ?? "error_required_field";
+      bookingFieldsForm.setError("responses", {
+        type: "manual",
+        message: issueMessage,
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleBookingFieldsNext = async () => {
+    setBookingErrorMessage(null);
+    const responses = normalizeBookingResponses(bookingFieldsForm.getValues("responses") ?? {});
+    const isValid = await validateBookingFields(responses);
+    if (!isValid) {
+      setBookingErrorMessage("Please complete the required booking fields before continuing.");
+      return;
+    }
+
+    setStep(GUESTS_STEP);
   };
 
   const handleConfirm = async () => {
@@ -244,23 +407,35 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
 
     if (invalidGuestEmails.length > 0) {
       setBookingErrorMessage("One or more additional guest emails are invalid.");
+      setStep(GUESTS_STEP);
       return;
     }
 
     const selectedStart = parseISO(selectedSlotTime);
     if (Number.isNaN(selectedStart.getTime())) {
       setBookingErrorMessage("The selected time slot is invalid. Please choose another slot.");
+      setStep(DATE_TIME_STEP);
       return;
     }
 
     const duration = selectedDuration ?? selectedEventDetail?.length ?? selectedEventInfo.length;
-    const responses: Record<string, unknown> = {
+    const bookingFieldResponses = normalizeBookingResponses(bookingFieldsForm.getValues("responses") ?? {});
+
+    let responses: Record<string, unknown> = {
+      ...bookingFieldResponses,
       name: contact.name,
       email: contact.email,
       ...(guestEmails.length > 0 ? { guests: guestEmails } : {}),
     };
 
-    if (contact.phone.trim()) {
+    const hasAttendeePhoneField = selectedEventDetail?.bookingFields.some(
+      (field) => field.name === SystemField.Enum.attendeePhoneNumber
+    );
+    const attendeePhoneValue =
+      typeof responses[SystemField.Enum.attendeePhoneNumber] === "string"
+        ? responses[SystemField.Enum.attendeePhoneNumber]
+        : "";
+    if (hasAttendeePhoneField && !attendeePhoneValue && contact.phone.trim()) {
       responses[SystemField.Enum.attendeePhoneNumber] = contact.phone.trim();
     }
 
@@ -270,10 +445,39 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
     const primaryLocation = selectedEventDetail?.locations.at(0);
     if (locationField && primaryLocation) {
       const attendeeInputType = isAttendeeInputRequired(primaryLocation.type);
+      const attendeePhoneValueForLocation =
+        typeof responses[SystemField.Enum.attendeePhoneNumber] === "string"
+          ? responses[SystemField.Enum.attendeePhoneNumber]
+          : contact.phone.trim();
       responses[SystemField.Enum.location] = {
         value: primaryLocation.type,
-        optionValue: attendeeInputType === "phone" ? contact.phone.trim() : "",
+        optionValue: attendeeInputType === "phone" ? attendeePhoneValueForLocation : "",
       };
+    }
+
+    if (selectedEventDetail) {
+      const fullSchema = getBookingResponsesSchema({
+        bookingFields: selectedEventDetail.bookingFields,
+        view: "booking",
+      });
+      const parsedResponses = await fullSchema.safeParseAsync(normalizeBookingResponses(responses));
+
+      if (!parsedResponses.success) {
+        const issueMessage = parsedResponses.error.issues[0]?.message ?? "error_required_field";
+        const issueFieldName = getIssueFieldName(issueMessage);
+        if (issueFieldName && bookingFieldsStepSource.some((field) => field.name === issueFieldName)) {
+          bookingFieldsForm.setError("responses", {
+            type: "manual",
+            message: issueMessage,
+          });
+          setStep(BOOKING_FIELDS_STEP);
+        }
+
+        setBookingErrorMessage("Please complete the required booking fields before confirming.");
+        return;
+      }
+
+      responses = parsedResponses.data;
     }
 
     const username = selectedEventDetail?.users.at(0)?.username || undefined;
@@ -317,9 +521,9 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
           </DialogTitle>
         </DialogHeader>
 
-        <MeetingStepIndicator step={step} />
+        <MeetingStepIndicator step={step} steps={steps} />
 
-        {step === 1 ? (
+        {step === EVENT_TYPE_STEP ? (
           <div className="space-y-2 pt-2">
             <Label>Select Event Type</Label>
             {eventTypesQuery.isLoading ? (
@@ -353,7 +557,9 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
                       setSelectedDate(undefined);
                       setSelectedDuration(null);
                       setSelectedSlotTime(null);
+                      setAdditionalGuests("");
                       setBookingErrorMessage(null);
+                      bookingFieldsForm.reset({ responses: {} });
                     }}
                     className={cn(
                       "w-full rounded-lg border px-4 py-3 text-left transition-colors",
@@ -390,14 +596,17 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
                   selectedEventQuery.isError ||
                   Boolean(unsupportedReason)
                 }
-                onClick={() => setStep(2)}>
+                onClick={() => {
+                  setBookingErrorMessage(null);
+                  setStep(DATE_TIME_STEP);
+                }}>
                 Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
         ) : null}
 
-        {step === 2 ? (
+        {step === DATE_TIME_STEP ? (
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
               <Label>Select Date</Label>
@@ -526,19 +735,85 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
             ) : null}
 
             <div className="flex justify-between pt-2">
-              <Button color="secondary" onClick={() => setStep(1)}>
+              <Button
+                color="secondary"
+                onClick={() => {
+                  setBookingErrorMessage(null);
+                  setStep(EVENT_TYPE_STEP);
+                }}>
                 <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
               </Button>
               <Button
                 disabled={!selectedDate || !selectedDuration || !selectedSlotTime}
-                onClick={() => setStep(3)}>
+                onClick={() => {
+                  setBookingErrorMessage(null);
+                  setStep(hasExtendedBookingFields ? BOOKING_FIELDS_STEP : GUESTS_STEP);
+                }}>
                 Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
         ) : null}
 
-        {step === 3 ? (
+        {hasExtendedBookingFields && step === BOOKING_FIELDS_STEP ? (
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label>Booking Fields</Label>
+              <p className="text-muted-foreground text-xs">
+                Fill in the event-specific booking details before continuing.
+              </p>
+            </div>
+
+            {selectedEventQuery.isLoading ? (
+              <div className="text-muted-foreground flex items-center gap-2 py-3 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading booking fields...
+              </div>
+            ) : null}
+
+            {selectedEventQuery.isError ? (
+              <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <p>{selectedEventQuery.error.message || "Could not load booking fields."}</p>
+                <Button color="secondary" size="sm" onClick={() => selectedEventQuery.refetch()}>
+                  Retry
+                </Button>
+              </div>
+            ) : null}
+
+            {!selectedEventQuery.isLoading && !selectedEventQuery.isError ? (
+              <div className="max-h-[42vh] overflow-y-auto pr-1">
+                <FormProvider {...bookingFieldsForm}>
+                  <BookingFields
+                    isDynamicGroupBooking={false}
+                    fields={bookingFieldsStepFields}
+                    locations={selectedEventDetail?.locations ?? []}
+                    bookingData={null}
+                  />
+                </FormProvider>
+              </div>
+            ) : null}
+
+            {bookingErrorMessage ? <p className="text-xs text-red-600">{bookingErrorMessage}</p> : null}
+
+            <div className="flex justify-between pt-2">
+              <Button
+                color="secondary"
+                onClick={() => {
+                  setBookingErrorMessage(null);
+                  setStep(DATE_TIME_STEP);
+                }}>
+                <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
+              </Button>
+              <Button
+                disabled={selectedEventQuery.isLoading || selectedEventQuery.isError}
+                onClick={handleBookingFieldsNext}>
+                Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === GUESTS_STEP ? (
           <div className="space-y-4 pt-2">
             <div className="bg-muted/50 border-border rounded-lg border p-3">
               <div className="text-sm font-medium">{contact?.name}</div>
@@ -555,18 +830,28 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
               />
               <p className="text-muted-foreground text-xs">Separate multiple emails with commas</p>
             </div>
+            {bookingErrorMessage ? <p className="text-xs text-red-600">{bookingErrorMessage}</p> : null}
             <div className="flex justify-between pt-2">
-              <Button color="secondary" onClick={() => setStep(2)}>
+              <Button
+                color="secondary"
+                onClick={() => {
+                  setBookingErrorMessage(null);
+                  setStep(BACK_FROM_GUESTS_STEP);
+                }}>
                 <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
               </Button>
-              <Button onClick={() => setStep(4)}>
+              <Button
+                onClick={() => {
+                  setBookingErrorMessage(null);
+                  setStep(CONFIRM_STEP);
+                }}>
                 Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
         ) : null}
 
-        {step === 4 ? (
+        {step === CONFIRM_STEP ? (
           <div className="space-y-4 pt-2">
             <div className="border-border space-y-3 rounded-lg border p-4">
               <h4 className="text-sm font-semibold">Booking Summary</h4>
@@ -605,7 +890,12 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
             </div>
             {bookingErrorMessage ? <p className="text-xs text-red-600">{bookingErrorMessage}</p> : null}
             <div className="flex justify-between">
-              <Button color="secondary" onClick={() => setStep(3)}>
+              <Button
+                color="secondary"
+                onClick={() => {
+                  setBookingErrorMessage(null);
+                  setStep(GUESTS_STEP);
+                }}>
                 <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
               </Button>
               <Button

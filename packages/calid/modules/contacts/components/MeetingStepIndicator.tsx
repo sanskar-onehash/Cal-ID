@@ -2,31 +2,33 @@ import { cn } from "@calid/features/lib/cn";
 
 interface MeetingStepIndicatorProps {
   step: number;
+  steps?: string[];
 }
 
-const getStepLabel = (step: number) => {
-  if (step === 1) return "Event Type";
-  if (step === 2) return "Date & Time";
-  if (step === 3) return "Guests";
-  return "Confirm";
-};
+const DEFAULT_STEPS = ["Event Type", "Date & Time", "Guests", "Confirm"];
 
-export const MeetingStepIndicator = ({ step }: MeetingStepIndicatorProps) => {
+export const MeetingStepIndicator = ({ step, steps = DEFAULT_STEPS }: MeetingStepIndicatorProps) => {
+  const clampedStep = Math.min(Math.max(step, 1), steps.length);
   return (
     <div className="flex items-center gap-2 py-2">
-      {[1, 2, 3, 4].map((value) => (
-        <div key={value} className="flex items-center gap-2">
-          <div
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-colors",
-              value <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-            )}>
-            {value}
+      {steps.map((_, index) => {
+        const value = index + 1;
+        return (
+          <div key={value} className="flex items-center gap-2">
+            <div
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-colors",
+                value <= clampedStep ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              )}>
+              {value}
+            </div>
+            {value < steps.length ? (
+              <div className={cn("h-px w-6", value < clampedStep ? "bg-primary" : "bg-border")} />
+            ) : null}
           </div>
-          {value < 4 ? <div className={cn("h-px w-6", value < step ? "bg-primary" : "bg-border")} /> : null}
-        </div>
-      ))}
-      <span className="text-muted-foreground ml-2 text-xs">{getStepLabel(step)}</span>
+        );
+      })}
+      <span className="text-muted-foreground ml-2 text-xs">{steps[clampedStep - 1] ?? "Confirm"}</span>
     </div>
   );
 };
