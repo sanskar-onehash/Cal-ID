@@ -8,15 +8,18 @@ import { Input } from "@calid/features/ui/components/input/input";
 import { Label } from "@calid/features/ui/components/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@calid/features/ui/components/popover";
 import { triggerToast } from "@calid/features/ui/components/toast";
+import { ToggleGroup } from "@calid/features/ui/components/toggle-group";
 import { useMutation } from "@tanstack/react-query";
 import { addMinutes, format, isBefore, parseISO, startOfDay } from "date-fns";
 import { ArrowLeft, ArrowRight, CalendarIcon, Check, Clock, Loader2, Users, Video } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { isAttendeeInputRequired } from "@calcom/app-store/locations";
+import { useTimePreferences } from "@calcom/features/bookings/lib";
 import { SystemField } from "@calcom/features/bookings/lib/SystemField";
 import { createBooking } from "@calcom/features/bookings/lib/create-booking";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
+import { TimeFormat } from "@calcom/lib/timeFormat";
 import { trpc } from "@calcom/trpc/react";
 
 import type { Contact } from "../types";
@@ -29,12 +32,15 @@ interface ScheduleMeetingModalProps {
 }
 
 export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMeetingModalProps) => {
-  const { i18n } = useLocale();
+  const { i18n, t } = useLocale();
   const utils = trpc.useUtils();
+  const timeFormat = useTimePreferences((state) => state.timeFormat);
+  const setTimeFormat = useTimePreferences((state) => state.setTimeFormat);
 
   const [step, setStep] = useState(1);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
   const [additionalGuests, setAdditionalGuests] = useState("");
   const [bookingErrorMessage, setBookingErrorMessage] = useState<string | null>(null);
@@ -57,23 +63,64 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
     }
   );
 
+  const selectedEventInfo = useMemo(
+    () => eventTypesQuery.data?.find((eventType) => eventType.id === selectedEventId) ?? null,
+    [eventTypesQuery.data, selectedEventId]
+  );
+
+  const selectedEventDetail = selectedEventQuery.data?.eventType;
+
   const selectedDateKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
+
+  const durationOptions = useMemo(() => {
+    const fallbackDuration = selectedEventDetail?.length ?? selectedEventInfo?.length ?? null;
+    const multipleDuration = selectedEventDetail?.metadata?.multipleDuration;
+
+    const validMultipleDurations = Array.isArray(multipleDuration)
+      ? multipleDuration.filter((duration): duration is number => Number.isFinite(duration) && duration > 0)
+      : [];
+
+    const uniqueDurations = Array.from(
+      new Set([...(fallbackDuration ? [fallbackDuration] : []), ...validMultipleDurations])
+    ).sort((first, second) => first - second);
+
+    return uniqueDurations;
+  }, [
+    selectedEventDetail?.length,
+    selectedEventDetail?.metadata?.multipleDuration,
+    selectedEventInfo?.length,
+  ]);
+
+  useEffect(() => {
+    if (durationOptions.length === 0) {
+      setSelectedDuration(null);
+      return;
+    }
+
+    if (!selectedDuration || !durationOptions.includes(selectedDuration)) {
+      setSelectedDuration(durationOptions[0]);
+      setSelectedSlotTime(null);
+    }
+  }, [durationOptions, selectedDuration]);
+
   const slotsInput = selectedDate
     ? {
         eventTypeId: selectedEventId ?? 0,
         startTime: startOfDay(selectedDate).toISOString(),
         endTime: addMinutes(startOfDay(selectedDate), 24 * 60 - 1).toISOString(),
         timeZone: userTimeZone,
+        ...(selectedDuration ? { duration: `${selectedDuration}` } : {}),
       }
     : {
         eventTypeId: selectedEventId ?? 0,
         startTime: new Date().toISOString(),
         endTime: new Date().toISOString(),
         timeZone: userTimeZone,
+        ...(selectedDuration ? { duration: `${selectedDuration}` } : {}),
       };
 
   const slotsQuery = trpc.viewer.slots.getSchedule.useQuery(slotsInput, {
-    enabled: open && selectedEventId !== null && Boolean(selectedDate),
+    enabled: open && selectedEventId !== null && Boolean(selectedDate) && Boolean(selectedDuration),
     refetchOnWindowFocus: false,
   });
 
@@ -89,13 +136,6 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
       .slice()
       .sort((first, second) => first.time.localeCompare(second.time));
   }, [selectedDateKey, slotsQuery.data?.slots]);
-
-  const selectedEventInfo = useMemo(
-    () => eventTypesQuery.data?.find((eventType) => eventType.id === selectedEventId) ?? null,
-    [eventTypesQuery.data, selectedEventId]
-  );
-
-  const selectedEventDetail = selectedEventQuery.data?.eventType;
 
   const unsupportedReason = useMemo(() => {
     if (!selectedEventDetail || !contact) {
@@ -174,6 +214,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
       setStep(1);
       setSelectedEventId(null);
       setSelectedDate(undefined);
+      setSelectedDuration(null);
       setSelectedSlotTime(null);
       setAdditionalGuests("");
       setBookingErrorMessage(null);
@@ -212,7 +253,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
       return;
     }
 
-    const duration = selectedEventDetail?.length ?? selectedEventInfo.length;
+    const duration = selectedDuration ?? selectedEventDetail?.length ?? selectedEventInfo.length;
     const responses: Record<string, unknown> = {
       name: contact.name,
       email: contact.email,
@@ -253,7 +294,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
       triggerToast(
         `Meeting with ${contact.name} confirmed for ${format(selectedStart, "PPP")} at ${format(
           selectedStart,
-          "HH:mm"
+          timeFormat
         )}.`,
         "success"
       );
@@ -310,6 +351,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
                     onClick={() => {
                       setSelectedEventId(eventType.id);
                       setSelectedDate(undefined);
+                      setSelectedDuration(null);
                       setSelectedSlotTime(null);
                       setBookingErrorMessage(null);
                     }}
@@ -386,9 +428,64 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
               </Popover>
             </div>
 
+            {selectedDate && (
+              <div className="space-y-1.5 pt-2">
+                <Label>Duration</Label>
+                {selectedEventQuery.isLoading ? (
+                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading duration options...
+                  </div>
+                ) : null}
+                {selectedEventQuery.isError ? (
+                  <p className="text-xs text-red-600">
+                    {selectedEventQuery.error.message || "Could not load duration options."}
+                  </p>
+                ) : null}
+                {!selectedEventQuery.isLoading &&
+                !selectedEventQuery.isError &&
+                durationOptions.length > 0 ? (
+                  <ToggleGroup
+                    value={selectedDuration ? `${selectedDuration}` : ""}
+                    onValueChange={(value) => {
+                      const nextDuration = Number(value);
+                      if (!value || Number.isNaN(nextDuration) || nextDuration === selectedDuration) {
+                        return;
+                      }
+                      setSelectedDuration(nextDuration);
+                      setSelectedSlotTime(null);
+                    }}
+                    options={durationOptions.map((duration) => ({
+                      value: `${duration}`,
+                      label: `${duration} min`,
+                    }))}
+                  />
+                ) : null}
+                {!selectedEventQuery.isLoading &&
+                !selectedEventQuery.isError &&
+                durationOptions.length === 0 ? (
+                  <p className="text-muted-foreground text-xs">No duration options available.</p>
+                ) : null}
+              </div>
+            )}
+
             {selectedDate ? (
               <div className="space-y-1.5">
-                <Label>Select Time</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Select Time</Label>
+                  <ToggleGroup
+                    value={timeFormat}
+                    onValueChange={(value) => {
+                      if (value && value !== timeFormat) {
+                        setTimeFormat(value as TimeFormat.TWELVE_HOUR | TimeFormat.TWENTY_FOUR_HOUR);
+                      }
+                    }}
+                    options={[
+                      { value: TimeFormat.TWELVE_HOUR, label: t("12_hour_short") || "12h" },
+                      { value: TimeFormat.TWENTY_FOUR_HOUR, label: t("24_hour_short") || "24h" },
+                    ]}
+                  />
+                </div>
                 {slotsQuery.isLoading ? (
                   <div className="text-muted-foreground flex items-center gap-2 text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -420,7 +517,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
                             ? "border-primary bg-primary/5 text-primary font-medium"
                             : "border-border hover:bg-muted/50"
                         )}>
-                        {format(parseISO(slot.time), "HH:mm")}
+                        {format(parseISO(slot.time), timeFormat)}
                       </button>
                     ))}
                   </div>
@@ -432,7 +529,9 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
               <Button color="secondary" onClick={() => setStep(1)}>
                 <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
               </Button>
-              <Button disabled={!selectedDate || !selectedSlotTime} onClick={() => setStep(3)}>
+              <Button
+                disabled={!selectedDate || !selectedDuration || !selectedSlotTime}
+                onClick={() => setStep(3)}>
                 Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </div>
@@ -483,13 +582,13 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Time</span>
                   <span className="font-medium">
-                    {selectedSlotTime ? format(parseISO(selectedSlotTime), "HH:mm") : ""}
+                    {selectedSlotTime ? format(parseISO(selectedSlotTime), timeFormat) : ""}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Duration</span>
                   <span className="font-medium">
-                    {selectedEventDetail?.length ?? selectedEventInfo?.length ?? 0} min
+                    {selectedDuration ?? selectedEventDetail?.length ?? 0} min
                   </span>
                 </div>
                 <div className="flex justify-between">
