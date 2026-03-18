@@ -1,20 +1,21 @@
 "use client";
 
-import { Button } from "@calid/features/ui/components/button";
 import { triggerToast } from "@calid/features/ui/components/toast";
-import { ArrowLeft, CalendarDays, Clock, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import useMediaQuery from "@calcom/lib/hooks/useMediaQuery";
 import { trpc } from "@calcom/trpc/react";
 
-import { AddEditContactModal } from "../components/AddEditContactModal";
-import { ContactNotesCard } from "../components/ContactNotesCard";
-import { ContactProfileCard } from "../components/ContactProfileCard";
-import { MeetingsSection } from "../components/MeetingsSection";
-import { ScheduleMeetingModal } from "../components/ScheduleMeetingModal";
-import { ShareAvailabilityModal } from "../components/ShareAvailabilityModal";
+import { ContactDetailLayout } from "../components/ContactDetailLayout";
+import { ContactDetailModals } from "../components/ContactDetailModals";
+import {
+  ContactDetailErrorState,
+  ContactDetailInvalidState,
+  ContactDetailLoadingState,
+  ContactDetailNotFoundState,
+} from "../components/ContactDetailStateViews";
+import { useContactDetailUiState } from "../hooks/useContactDetailUiState";
 import {
   mapContactDraftToUpdateInput,
   mapContactMeetingRowToContactMeeting,
@@ -33,15 +34,6 @@ const sortMeetingsByStartTimeDesc = (first: ContactMeeting, second: ContactMeeti
   }
 
   return second.id - first.id;
-};
-
-const sortMeetingsByStartTimeInc = (first: ContactMeeting, second: ContactMeeting) => {
-  const timeDiff = first.date.getTime() - second.date.getTime();
-  if (timeDiff !== 0) {
-    return timeDiff;
-  }
-
-  return first.id - second.id;
 };
 
 const ContactDetailPage = ({ contactId }: ContactDetailPageProps) => {
@@ -85,10 +77,9 @@ const ContactDetailPage = ({ contactId }: ContactDetailPageProps) => {
   );
   const currentTime = Date.now();
   const upcomingMeetings = useMemo(
-    () => meetings.filter((meeting) => meeting.status === "upcoming").sort(sortMeetingsByStartTimeInc),
+    () => meetings.filter((meeting) => meeting.status === "upcoming").sort(sortMeetingsByStartTimeDesc),
     [meetings]
   );
-
   const pastMeetings = useMemo(
     () =>
       meetings
@@ -98,20 +89,28 @@ const ContactDetailPage = ({ contactId }: ContactDetailPageProps) => {
             meeting.date.getTime() + meeting.duration * 60 * 1000 < currentTime
         )
         .sort(sortMeetingsByStartTimeDesc),
-    [meetings, currentTime]
+    [meetings]
   );
 
-  const [notes, setNotes] = useState("");
-  const [editOpen, setEditOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
-  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null);
-  const [notesErrorMessage, setNotesErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    setNotes(contact?.notes ?? "");
-  }, [contact?.id, contact?.notes]);
+  const {
+    notes,
+    editOpen,
+    shareOpen,
+    scheduleOpen,
+    editErrorMessage,
+    deleteErrorMessage,
+    notesErrorMessage,
+    setEditErrorMessage,
+    setDeleteErrorMessage,
+    setNotesErrorMessage,
+    handleEditOpenChange,
+    handleNotesChange,
+    setShareOpen,
+    setScheduleOpen,
+  } = useContactDetailUiState({
+    contactId: contact?.id,
+    initialNotes: contact?.notes ?? "",
+  });
 
   const updateContactMutation = trpc.viewer.calIdContacts.update.useMutation({
     async onSuccess(updatedContact) {
@@ -130,49 +129,30 @@ const ContactDetailPage = ({ contactId }: ContactDetailPageProps) => {
     },
   });
 
+  const handleBackToContacts = () => {
+    router.push("/contacts");
+  };
+
   if (!hasValidContactId) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <h3 className="mb-1 text-lg font-semibold">Invalid contact</h3>
-        <p className="text-muted-foreground mb-4 text-sm">The contact ID is invalid.</p>
-        <Button color="secondary" onClick={() => router.push("/contacts")}>
-          <ArrowLeft className="h-4 w-4" /> Back to Contacts
-        </Button>
-      </div>
-    );
+    return <ContactDetailInvalidState onBack={handleBackToContacts} />;
   }
 
   if (contactQuery.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
-      </div>
-    );
+    return <ContactDetailLoadingState />;
   }
 
   if (contactQuery.error?.data?.code === "NOT_FOUND") {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <h3 className="mb-1 text-lg font-semibold">Contact not found</h3>
-        <p className="text-muted-foreground mb-4 text-sm">This contact may have been removed.</p>
-        <Button color="secondary" onClick={() => router.push("/contacts")}>
-          <ArrowLeft className="h-4 w-4" /> Back to Contacts
-        </Button>
-      </div>
-    );
+    return <ContactDetailNotFoundState onBack={handleBackToContacts} />;
   }
 
   if (contactQuery.isError) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <h3 className="mb-1 text-lg font-semibold">Failed to load contact</h3>
-        <p className="text-muted-foreground mb-4 text-sm">
-          {contactQuery.error.message || "Please try again in a moment."}
-        </p>
-        <Button color="secondary" onClick={() => contactQuery.refetch()}>
-          Retry
-        </Button>
-      </div>
+      <ContactDetailErrorState
+        message={contactQuery.error.message}
+        onRetry={() => {
+          void contactQuery.refetch();
+        }}
+      />
     );
   }
 
@@ -198,7 +178,7 @@ const ContactDetailPage = ({ contactId }: ContactDetailPageProps) => {
     try {
       await updateContactMutation.mutateAsync(mapContactDraftToUpdateInput(draft));
       triggerToast("Contact updated", "success");
-      setEditOpen(false);
+      handleEditOpenChange(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not update contact";
       setEditErrorMessage(message);
@@ -224,76 +204,39 @@ const ContactDetailPage = ({ contactId }: ContactDetailPageProps) => {
 
   return (
     <div className="space-y-6">
-      <div className={`grid gap-6 ${isMobile ? "grid-cols-1" : "grid-cols-3"}`}>
-        <div className="space-y-6">
-          <ContactProfileCard
-            contact={contact}
-            onEdit={() => setEditOpen(true)}
-            onShare={() => setShareOpen(true)}
-            onSchedule={() => setScheduleOpen(true)}
-            onDelete={handleDelete}
-            isDeleting={deleteContactMutation.isPending}
-            deleteErrorMessage={deleteErrorMessage}
-          />
-
-          <ContactNotesCard
-            notes={notes}
-            onNotesChange={(value) => {
-              setNotes(value);
-              setNotesErrorMessage(null);
-            }}
-            hasChanges={notes !== contact.notes}
-            onSave={handleSaveNotes}
-            isSaving={updateContactMutation.isPending}
-            saveErrorMessage={notesErrorMessage}
-          />
-        </div>
-
-        <div className={isMobile ? "space-y-6" : "col-span-2 grid gap-6 overflow-hidden"}>
-          <MeetingsSection
-            title={
-              <>
-                <CalendarDays className="h-4 w-4" /> Upcoming Meetings
-              </>
-            }
-            meetings={upcomingMeetings}
-            emptyLabel="No upcoming meetings found for this contact"
-            countBadge
-            isLoading={meetingsQuery.isLoading}
-            errorMessage={meetingsQuery.isError ? meetingsQuery.error.message : null}
-            className={isMobile ? undefined : "min-h-0 overflow-hidden"}
-          />
-
-          <MeetingsSection
-            title={
-              <>
-                <Clock className="h-4 w-4" /> Meeting History
-              </>
-            }
-            meetings={pastMeetings}
-            emptyLabel="No meeting history found for this contact"
-            isLoading={meetingsQuery.isLoading}
-            errorMessage={meetingsQuery.isError ? meetingsQuery.error.message : null}
-            className={isMobile ? undefined : "min-h-0 overflow-hidden"}
-          />
-        </div>
-      </div>
-
-      <AddEditContactModal
-        open={editOpen}
-        onOpenChange={(open) => {
-          setEditOpen(open);
-          if (!open) {
-            setEditErrorMessage(null);
-          }
-        }}
+      <ContactDetailLayout
         contact={contact}
-        onSave={handleSaveContact}
-        isSubmitting={updateContactMutation.isPending}
-        errorMessage={editErrorMessage}
+        isMobile={isMobile}
+        upcomingMeetings={upcomingMeetings}
+        pastMeetings={pastMeetings}
+        meetingsLoading={meetingsQuery.isLoading}
+        meetingsErrorMessage={meetingsQuery.isError ? meetingsQuery.error.message : null}
+        notes={notes}
+        onNotesChange={handleNotesChange}
+        onSaveNotes={handleSaveNotes}
+        notesHasChanges={notes !== contact.notes}
+        notesSaveErrorMessage={notesErrorMessage}
+        isSavingNotes={updateContactMutation.isPending}
+        onEditContact={() => handleEditOpenChange(true)}
+        onShareAvailability={() => setShareOpen(true)}
+        onScheduleMeeting={() => setScheduleOpen(true)}
+        onDeleteContact={handleDelete}
+        isDeletingContact={deleteContactMutation.isPending}
+        deleteErrorMessage={deleteErrorMessage}
       />
-      <ShareAvailabilityModal open={shareOpen} onOpenChange={setShareOpen} contact={contact} />
-      <ScheduleMeetingModal open={scheduleOpen} onOpenChange={setScheduleOpen} contact={contact} />
+
+      <ContactDetailModals
+        contact={contact}
+        editOpen={editOpen}
+        onEditOpenChange={handleEditOpenChange}
+        onSaveContact={handleSaveContact}
+        isSubmittingContact={updateContactMutation.isPending}
+        editErrorMessage={editErrorMessage}
+        shareOpen={shareOpen}
+        onShareOpenChange={setShareOpen}
+        scheduleOpen={scheduleOpen}
+        onScheduleOpenChange={setScheduleOpen}
+      />
     </div>
   );
 };
