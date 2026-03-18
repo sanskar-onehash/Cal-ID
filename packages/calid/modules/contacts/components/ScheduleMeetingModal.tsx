@@ -1,17 +1,10 @@
 "use client";
 
-import { cn } from "@calid/features/lib/cn";
-import { Button } from "@calid/features/ui/components/button";
-import { Calendar } from "@calid/features/ui/components/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@calid/features/ui/components/dialog";
-import { Input } from "@calid/features/ui/components/input/input";
-import { Label } from "@calid/features/ui/components/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@calid/features/ui/components/popover";
 import { triggerToast } from "@calid/features/ui/components/toast";
-import { ToggleGroup } from "@calid/features/ui/components/toggle-group";
 import { useMutation } from "@tanstack/react-query";
-import { addMinutes, format, isBefore, parseISO, startOfDay } from "date-fns";
-import { ArrowLeft, ArrowRight, CalendarIcon, Check, Clock, Loader2, Users, Video } from "lucide-react";
+import { addMinutes, format, parseISO, startOfDay } from "date-fns";
+import { Loader2, Video } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
@@ -30,11 +23,25 @@ import { getPaymentAppData } from "@calcom/lib/getPaymentAppData";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { parseRecurringDates, processDate } from "@calcom/lib/parse-dates";
 import { getCountText, getFrequencyText, getRecurringFreq } from "@calcom/lib/recurringStrings";
-import { TimeFormat } from "@calcom/lib/timeFormat";
 import { trpc } from "@calcom/trpc/react";
 
 import type { Contact } from "../types";
 import { MeetingStepIndicator } from "./MeetingStepIndicator";
+import {
+  DEFAULT_STEPS,
+  HANDLED_BOOKING_FIELD_NAMES,
+  STEPS_WITH_BOOKING_FIELDS,
+} from "./ScheduleMeetingModal.constants";
+import {
+  getIssueFieldName,
+  isFieldVisibleInBookingView,
+  normalizeBookingResponses,
+} from "./ScheduleMeetingModal.utils";
+import { ScheduleMeetingModalBookingFieldsStep } from "./ScheduleMeetingModalBookingFieldsStep";
+import { ScheduleMeetingModalConfirmStep } from "./ScheduleMeetingModalConfirmStep";
+import { ScheduleMeetingModalDateTimeStep } from "./ScheduleMeetingModalDateTimeStep";
+import { ScheduleMeetingModalEventTypeStep } from "./ScheduleMeetingModalEventTypeStep";
+import { ScheduleMeetingModalGuestsStep } from "./ScheduleMeetingModalGuestsStep";
 
 interface ScheduleMeetingModalProps {
   open: boolean;
@@ -44,62 +51,6 @@ interface ScheduleMeetingModalProps {
 
 type BookingFieldsFormValues = {
   responses: Record<string, unknown>;
-};
-
-const DEFAULT_STEPS = ["Event Type", "Date & Time", "Guests", "Confirm"];
-const STEPS_WITH_BOOKING_FIELDS = ["Event Type", "Date & Time", "Booking Fields", "Guests", "Confirm"];
-
-const HANDLED_BOOKING_FIELD_NAMES = new Set([
-  SystemField.Enum.name,
-  SystemField.Enum.email,
-  SystemField.Enum.guests,
-  SystemField.Enum.location,
-]);
-
-const getIssueFieldName = (message?: string) => {
-  if (!message) {
-    return null;
-  }
-
-  const match = message.match(/^\{([^}]+)\}/);
-  return match?.[1] ?? null;
-};
-
-const isFieldVisibleInBookingView = (views?: { id: string }[]) => {
-  if (!views || views.length === 0) {
-    return true;
-  }
-
-  return views.some((view) => view.id === "booking");
-};
-
-const normalizeBookingResponses = (responses: Record<string, unknown>) => {
-  return Object.entries(responses).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (typeof value === "string") {
-      acc[key] = value.trim();
-      return acc;
-    }
-
-    if (Array.isArray(value)) {
-      acc[key] = value.map((item) => (typeof item === "string" ? item.trim() : item));
-      return acc;
-    }
-
-    if (value && typeof value === "object") {
-      const normalizedObject = Object.entries(value as Record<string, unknown>).reduce<
-        Record<string, unknown>
-      >((objectAcc, [objectKey, objectValue]) => {
-        objectAcc[objectKey] = typeof objectValue === "string" ? objectValue.trim() : objectValue;
-        return objectAcc;
-      }, {});
-
-      acc[key] = normalizedObject;
-      return acc;
-    }
-
-    acc[key] = value;
-    return acc;
-  }, {});
 };
 
 export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMeetingModalProps) => {
@@ -171,7 +122,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
         return false;
       }
 
-      return !HANDLED_BOOKING_FIELD_NAMES.has(field.name);
+      return !HANDLED_BOOKING_FIELD_NAMES.has(field?.name);
     });
   }, [selectedEventDetail]);
 
@@ -192,8 +143,8 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
 
   const defaultBookingFieldResponses = useMemo(() => {
     return bookingFieldsStepSource.reduce<Record<string, unknown>>((defaults, field) => {
-      if (field.name === SystemField.Enum.attendeePhoneNumber && contact?.phone?.trim()) {
-        defaults[field.name] = contact.phone.trim();
+      if (field?.name === SystemField.Enum.attendeePhoneNumber && contact?.phone?.trim()) {
+        defaults[field?.name] = contact.phone.trim();
       }
       return defaults;
     }, {});
@@ -385,7 +336,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
     }
 
     const locationField = selectedEventDetail.bookingFields.find(
-      (field) => field.name === SystemField.Enum.location && field.required && !field.hidden
+      (field) => field && field.name === SystemField.Enum.location && field.required && !field.hidden
     );
     if (locationField) {
       const primaryLocation = selectedEventDetail.locations.at(0);
@@ -486,7 +437,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
     bookingFieldsForm.clearErrors("responses");
 
     if (!validation.success) {
-      const bookingFieldStepNames = new Set(bookingFieldsStepSource.map((field) => field.name));
+      const bookingFieldStepNames = new Set(bookingFieldsStepSource.map((field) => field?.name));
       const relevantIssue =
         validation.error.issues.find((issue) => {
           const issueFieldName = getIssueFieldName(issue.message);
@@ -594,7 +545,7 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
     };
 
     const hasAttendeePhoneField = selectedEventDetail?.bookingFields.some(
-      (field) => field.name === SystemField.Enum.attendeePhoneNumber
+      (field) => field?.name === SystemField.Enum.attendeePhoneNumber
     );
     const attendeePhoneValue =
       typeof responses[SystemField.Enum.attendeePhoneNumber] === "string"
@@ -717,6 +668,16 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
     }
   };
 
+  const handleSelectEventType = (eventTypeId: number) => {
+    setSelectedEventId(eventTypeId);
+    setSelectedDate(undefined);
+    setSelectedDuration(null);
+    setSelectedSlotTime(null);
+    setAdditionalGuests("");
+    setBookingErrorMessage(null);
+    bookingFieldsForm.reset({ responses: {} });
+  };
+
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
       <DialogContent size="md" enableOverflow className="max-h-[90vh]">
@@ -730,460 +691,152 @@ export const ScheduleMeetingModal = ({ open, onOpenChange, contact }: ScheduleMe
         <MeetingStepIndicator step={step} steps={steps} />
 
         {step === EVENT_TYPE_STEP ? (
-          <div className="space-y-2 pt-2">
-            <Label>Select Event Type</Label>
-            {eventTypesQuery.isLoading ? (
-              <div className="text-muted-foreground flex items-center gap-2 py-3 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading event types...
-              </div>
-            ) : null}
-            {eventTypesQuery.isError ? (
-              <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                <p>{eventTypesQuery.error.message || "Failed to load event types."}</p>
-                <Button color="secondary" size="sm" onClick={() => eventTypesQuery.refetch()}>
-                  Retry
-                </Button>
-              </div>
-            ) : null}
-            {!eventTypesQuery.isLoading &&
-            !eventTypesQuery.isError &&
-            (eventTypesQuery.data?.length ?? 0) === 0 ? (
-              <p className="text-muted-foreground rounded-lg border px-3 py-2 text-sm">
-                No event types available for scheduling.
-              </p>
-            ) : null}
-            {!eventTypesQuery.isLoading && !eventTypesQuery.isError ? (
-              <div className="space-y-2">
-                {(eventTypesQuery.data ?? []).map((eventType) => (
-                  <button
-                    key={eventType.id}
-                    onClick={() => {
-                      setSelectedEventId(eventType.id);
-                      setSelectedDate(undefined);
-                      setSelectedDuration(null);
-                      setSelectedSlotTime(null);
-                      setAdditionalGuests("");
-                      setBookingErrorMessage(null);
-                      bookingFieldsForm.reset({ responses: {} });
-                    }}
-                    className={cn(
-                      "w-full rounded-lg border px-4 py-3 text-left transition-colors",
-                      selectedEventId === eventType.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted/50"
-                    )}>
-                    <div className="text-sm font-medium">{eventType.title}</div>
-                    <div className="text-muted-foreground flex items-center gap-1 text-xs">
-                      <Clock className="h-3 w-3" /> {eventType.length} min
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {selectedEventId !== null && selectedEventQuery.isLoading ? (
-              <div className="text-muted-foreground flex items-center gap-2 text-xs">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Checking event type access...
-              </div>
-            ) : null}
-            {selectedEventQuery.isError ? (
-              <p className="text-xs text-red-600">
-                {selectedEventQuery.error.message ||
-                  "You do not have permission to schedule this event type."}
-              </p>
-            ) : null}
-            {unsupportedReason ? <p className="text-xs text-red-600">{unsupportedReason}</p> : null}
-            <div className="flex justify-end pt-2">
-              <Button
-                disabled={
-                  selectedEventId === null ||
-                  selectedEventQuery.isLoading ||
-                  selectedEventQuery.isError ||
-                  Boolean(unsupportedReason)
-                }
-                onClick={() => {
-                  setBookingErrorMessage(null);
-                  setStep(DATE_TIME_STEP);
-                }}>
-                Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+          <ScheduleMeetingModalEventTypeStep
+            eventTypes={eventTypesQuery.data ?? []}
+            selectedEventId={selectedEventId}
+            onSelectEventType={handleSelectEventType}
+            isEventTypesLoading={eventTypesQuery.isLoading}
+            eventTypesErrorMessage={eventTypesQuery.isError ? eventTypesQuery.error.message : null}
+            onRetryEventTypes={() => {
+              void eventTypesQuery.refetch();
+            }}
+            isSelectedEventLoading={selectedEventId !== null && selectedEventQuery.isLoading}
+            selectedEventErrorMessage={selectedEventQuery.isError ? selectedEventQuery.error.message : null}
+            unsupportedReason={unsupportedReason}
+            isNextDisabled={
+              selectedEventId === null ||
+              selectedEventQuery.isLoading ||
+              selectedEventQuery.isError ||
+              Boolean(unsupportedReason)
+            }
+            onNext={() => {
+              setBookingErrorMessage(null);
+              setStep(DATE_TIME_STEP);
+            }}
+          />
         ) : null}
 
         {step === DATE_TIME_STEP ? (
-          <div className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label>Select Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    color="secondary"
-                    className={cn(
-                      "w-full justify-start text-left",
-                      !selectedDate && "text-muted-foreground"
-                    )}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="bg-default w-auto border p-0">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(value) => {
-                      setSelectedDate(value);
-                      setSelectedSlotTime(null);
-                    }}
-                    disabled={(date) => isBefore(date, startOfDay(new Date()))}
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {selectedDate && (
-              <div className="space-y-1.5 pt-2">
-                <Label>Duration</Label>
-                {selectedEventQuery.isLoading ? (
-                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading duration options...
-                  </div>
-                ) : null}
-                {selectedEventQuery.isError ? (
-                  <p className="text-xs text-red-600">
-                    {selectedEventQuery.error.message || "Could not load duration options."}
-                  </p>
-                ) : null}
-                {!selectedEventQuery.isLoading &&
-                !selectedEventQuery.isError &&
-                durationOptions.length > 0 ? (
-                  <ToggleGroup
-                    value={selectedDuration ? `${selectedDuration}` : ""}
-                    onValueChange={(value) => {
-                      const nextDuration = Number(value);
-                      if (!value || Number.isNaN(nextDuration) || nextDuration === selectedDuration) {
-                        return;
-                      }
-                      setSelectedDuration(nextDuration);
-                      setSelectedSlotTime(null);
-                    }}
-                    options={durationOptions.map((duration) => ({
-                      value: `${duration}`,
-                      label: `${duration} min`,
-                    }))}
-                  />
-                ) : null}
-                {!selectedEventQuery.isLoading &&
-                !selectedEventQuery.isError &&
-                durationOptions.length === 0 ? (
-                  <p className="text-muted-foreground text-xs">No duration options available.</p>
-                ) : null}
-              </div>
-            )}
-
-            {selectedDate ? (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label>Select Time</Label>
-                  <ToggleGroup
-                    value={timeFormat}
-                    onValueChange={(value) => {
-                      if (value && value !== timeFormat) {
-                        setTimeFormat(value as TimeFormat.TWELVE_HOUR | TimeFormat.TWENTY_FOUR_HOUR);
-                      }
-                    }}
-                    options={[
-                      { value: TimeFormat.TWELVE_HOUR, label: t("12_hour_short") || "12h" },
-                      { value: TimeFormat.TWENTY_FOUR_HOUR, label: t("24_hour_short") || "24h" },
-                    ]}
-                  />
-                </div>
-                {slotsQuery.isLoading ? (
-                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading available slots...
-                  </div>
-                ) : null}
-                {slotsQuery.isError ? (
-                  <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    <p>{slotsQuery.error.message || "Failed to load time slots."}</p>
-                    <Button color="secondary" size="sm" onClick={() => slotsQuery.refetch()}>
-                      Retry
-                    </Button>
-                  </div>
-                ) : null}
-                {!slotsQuery.isLoading && !slotsQuery.isError && availableSlots.length === 0 ? (
-                  <p className="text-muted-foreground rounded-lg border px-3 py-2 text-xs">
-                    No available slots for this date.
-                  </p>
-                ) : null}
-                {!slotsQuery.isLoading && !slotsQuery.isError && availableSlots.length > 0 ? (
-                  <div className="grid grid-cols-4 gap-2">
-                    {availableSlots.map((slot) => (
-                      <button
-                        key={slot.time}
-                        onClick={() => setSelectedSlotTime(slot.time)}
-                        className={cn(
-                          "rounded-md border px-3 py-2 text-xs transition-colors",
-                          selectedSlotTime === slot.time
-                            ? "border-primary bg-primary/5 text-primary font-medium"
-                            : "border-border hover:bg-muted/50"
-                        )}>
-                        {format(parseISO(slot.time), timeFormat)}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {isRecurringEventType ? (
-              <div className="space-y-2 rounded-lg border px-3 py-3">
-                <div className="space-y-1">
-                  <Label>Recurrence</Label>
-                  {recurringPatternText ? (
-                    <p className="text-muted-foreground text-xs capitalize">{recurringPatternText}</p>
-                  ) : (
-                    <p className="text-muted-foreground text-xs">
-                      This event repeats on a recurring schedule.
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="recurring-count">Occurrences</Label>
-                  <Input
-                    id="recurring-count"
-                    type="number"
-                    min={1}
-                    max={recurringMaxCount ?? undefined}
-                    value={recurringEventCountInput}
-                    onChange={(event) => handleRecurringCountInputChange(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (["-", "+", "e", "E"].includes(event.key)) {
-                        event.preventDefault();
-                      }
-                    }}
-                    className="max-w-[120px]"
-                  />
-                  {recurringMaxCount ? (
-                    <p className="text-muted-foreground text-xs">Choose between 1 and {recurringMaxCount}.</p>
-                  ) : (
-                    <p className="text-muted-foreground text-xs">Choose how many occurrences to schedule.</p>
-                  )}
-                  {recurringEventCountWarning ? (
-                    <p className="text-xs text-amber-700">{recurringEventCountWarning}</p>
-                  ) : null}
-                </div>
-                {recurringSummaryText ? <p className="text-xs font-medium">{recurringSummaryText}</p> : null}
-                {recurringOccurrencePreview.length > 0 ? (
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">Upcoming occurrences</p>
-                    <ul className="space-y-1 text-xs">
-                      {recurringOccurrencePreview.map((occurrence, index) => (
-                        <li key={`${occurrence}-${index}`} className="text-muted-foreground">
-                          {occurrence}
-                        </li>
-                      ))}
-                      {recurringEventCount && recurringEventCount > recurringOccurrencePreview.length ? (
-                        <li className="text-muted-foreground">
-                          + {recurringEventCount - recurringOccurrencePreview.length} more
-                        </li>
-                      ) : null}
-                    </ul>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="flex justify-between pt-2">
-              <Button
-                color="secondary"
-                onClick={() => {
-                  setBookingErrorMessage(null);
-                  setStep(EVENT_TYPE_STEP);
-                }}>
-                <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
-              </Button>
-              <Button
-                disabled={
-                  !selectedDate || !selectedDuration || !selectedSlotTime || !isRecurringSelectionValid
-                }
-                onClick={() => {
-                  setBookingErrorMessage(null);
-                  setStep(hasExtendedBookingFields ? BOOKING_FIELDS_STEP : GUESTS_STEP);
-                }}>
-                Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+          <ScheduleMeetingModalDateTimeStep
+            selectedDate={selectedDate}
+            onSelectDate={(value) => {
+              setSelectedDate(value);
+              setSelectedSlotTime(null);
+            }}
+            selectedDuration={selectedDuration}
+            durationOptions={durationOptions}
+            onSelectDuration={(nextDuration) => {
+              setSelectedDuration(nextDuration);
+              setSelectedSlotTime(null);
+            }}
+            selectedSlotTime={selectedSlotTime}
+            onSelectSlotTime={setSelectedSlotTime}
+            availableSlots={availableSlots}
+            isDurationLoading={selectedDate ? selectedEventQuery.isLoading : false}
+            durationErrorMessage={
+              selectedDate && selectedEventQuery.isError ? selectedEventQuery.error.message : null
+            }
+            isSlotsLoading={slotsQuery.isLoading}
+            slotsErrorMessage={slotsQuery.isError ? slotsQuery.error.message : null}
+            onRetrySlots={() => {
+              void slotsQuery.refetch();
+            }}
+            timeFormat={timeFormat}
+            onTimeFormatChange={setTimeFormat}
+            timeFormat12hLabel={t("12_hour_short") || "12h"}
+            timeFormat24hLabel={t("24_hour_short") || "24h"}
+            isRecurringEventType={isRecurringEventType}
+            recurringPatternText={recurringPatternText}
+            recurringMaxCount={recurringMaxCount}
+            recurringEventCountInput={recurringEventCountInput}
+            onRecurringCountInputChange={handleRecurringCountInputChange}
+            recurringEventCountWarning={recurringEventCountWarning}
+            recurringSummaryText={recurringSummaryText}
+            recurringOccurrencePreview={recurringOccurrencePreview}
+            recurringEventCount={recurringEventCount}
+            isRecurringSelectionValid={isRecurringSelectionValid}
+            canContinue={Boolean(selectedDate && selectedDuration && selectedSlotTime)}
+            onBack={() => {
+              setBookingErrorMessage(null);
+              setStep(EVENT_TYPE_STEP);
+            }}
+            onNext={() => {
+              setBookingErrorMessage(null);
+              setStep(hasExtendedBookingFields ? BOOKING_FIELDS_STEP : GUESTS_STEP);
+            }}
+          />
         ) : null}
 
         {hasExtendedBookingFields && step === BOOKING_FIELDS_STEP ? (
-          <div className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label>Booking Fields</Label>
-              <p className="text-muted-foreground text-xs">
-                Fill in the event-specific booking details before continuing.
-              </p>
-            </div>
-
-            {selectedEventQuery.isLoading ? (
-              <div className="text-muted-foreground flex items-center gap-2 py-3 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading booking fields...
-              </div>
-            ) : null}
-
-            {selectedEventQuery.isError ? (
-              <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                <p>{selectedEventQuery.error.message || "Could not load booking fields."}</p>
-                <Button color="secondary" size="sm" onClick={() => selectedEventQuery.refetch()}>
-                  Retry
-                </Button>
-              </div>
-            ) : null}
-
-            {!selectedEventQuery.isLoading && !selectedEventQuery.isError ? (
-              <div className="max-h-[42vh] overflow-y-auto pr-1">
-                <FormProvider {...bookingFieldsForm}>
-                  <BookingFields
-                    isDynamicGroupBooking={false}
-                    fields={bookingFieldsStepFields}
-                    locations={selectedEventDetail?.locations ?? []}
-                    bookingData={null}
-                  />
-                </FormProvider>
-              </div>
-            ) : null}
-
-            {bookingErrorMessage ? <p className="text-xs text-red-600">{bookingErrorMessage}</p> : null}
-
-            <div className="flex justify-between pt-2">
-              <Button
-                color="secondary"
-                onClick={() => {
-                  setBookingErrorMessage(null);
-                  setStep(DATE_TIME_STEP);
-                }}>
-                <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
-              </Button>
-              <Button
-                disabled={selectedEventQuery.isLoading || selectedEventQuery.isError}
-                onClick={handleBookingFieldsNext}>
-                Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+          <ScheduleMeetingModalBookingFieldsStep
+            isLoading={selectedEventQuery.isLoading}
+            errorMessage={selectedEventQuery.isError ? selectedEventQuery.error.message : null}
+            onRetry={() => {
+              void selectedEventQuery.refetch();
+            }}
+            bookingErrorMessage={bookingErrorMessage}
+            onBack={() => {
+              setBookingErrorMessage(null);
+              setStep(DATE_TIME_STEP);
+            }}
+            onNext={handleBookingFieldsNext}
+            nextDisabled={selectedEventQuery.isLoading || selectedEventQuery.isError}>
+            <FormProvider {...bookingFieldsForm}>
+              <BookingFields
+                isDynamicGroupBooking={false}
+                fields={bookingFieldsStepFields}
+                locations={selectedEventDetail?.locations ?? []}
+                bookingData={null}
+              />
+            </FormProvider>
+          </ScheduleMeetingModalBookingFieldsStep>
         ) : null}
 
         {step === GUESTS_STEP ? (
-          <div className="space-y-4 pt-2">
-            <div className="bg-muted/50 border-border rounded-lg border p-3">
-              <div className="text-sm font-medium">{contact?.name}</div>
-              <div className="text-muted-foreground text-xs">{contact?.email}</div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5" /> Additional Guests
-              </Label>
-              <Input
-                value={additionalGuests}
-                onChange={(event) => setAdditionalGuests(event.target.value)}
-                placeholder="guest1@email.com, guest2@email.com"
-              />
-              <p className="text-muted-foreground text-xs">Separate multiple emails with commas</p>
-            </div>
-            {bookingErrorMessage ? <p className="text-xs text-red-600">{bookingErrorMessage}</p> : null}
-            <div className="flex justify-between pt-2">
-              <Button
-                color="secondary"
-                onClick={() => {
-                  setBookingErrorMessage(null);
-                  setStep(BACK_FROM_GUESTS_STEP);
-                }}>
-                <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
-              </Button>
-              <Button
-                onClick={() => {
-                  setBookingErrorMessage(null);
-                  setStep(CONFIRM_STEP);
-                }}>
-                Next <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+          <ScheduleMeetingModalGuestsStep
+            contactName={contact?.name}
+            contactEmail={contact?.email}
+            additionalGuests={additionalGuests}
+            onAdditionalGuestsChange={setAdditionalGuests}
+            bookingErrorMessage={bookingErrorMessage}
+            onBack={() => {
+              setBookingErrorMessage(null);
+              setStep(BACK_FROM_GUESTS_STEP);
+            }}
+            onNext={() => {
+              setBookingErrorMessage(null);
+              setStep(CONFIRM_STEP);
+            }}
+          />
         ) : null}
 
         {step === CONFIRM_STEP ? (
-          <div className="space-y-4 pt-2">
-            <div className="border-border space-y-3 rounded-lg border p-4">
-              <h4 className="text-sm font-semibold">Booking Summary</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Event</span>
-                  <span className="font-medium">{selectedEventInfo?.title}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Date</span>
-                  <span className="font-medium">{selectedDate ? format(selectedDate, "PPP") : ""}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Time</span>
-                  <span className="font-medium">
-                    {selectedSlotTime ? format(parseISO(selectedSlotTime), timeFormat) : ""}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Duration</span>
-                  <span className="font-medium">
-                    {selectedDuration ?? selectedEventDetail?.length ?? 0} min
-                  </span>
-                </div>
-                {isRecurringEventType ? (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Recurrence</span>
-                      <span className="text-right text-xs font-medium capitalize">
-                        {recurringPatternText || "Recurring"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Occurrences</span>
-                      <span className="font-medium">{recurringEventCount ?? recurringMaxCount ?? "-"}</span>
-                    </div>
-                  </>
-                ) : null}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Contact</span>
-                  <span className="font-medium">{contact?.name}</span>
-                </div>
-                {additionalGuests ? (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Guests</span>
-                    <span className="text-right text-xs font-medium">{additionalGuests}</span>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-            {bookingErrorMessage ? <p className="text-xs text-red-600">{bookingErrorMessage}</p> : null}
-            <div className="flex justify-between">
-              <Button
-                color="secondary"
-                onClick={() => {
-                  setBookingErrorMessage(null);
-                  setStep(GUESTS_STEP);
-                }}>
-                <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Back
-              </Button>
-              <Button
-                loading={isAnyBookingMutationPending}
-                disabled={isAnyBookingMutationPending || Boolean(unsupportedReason)}
-                onClick={handleConfirm}>
-                <Check className="mr-1 h-3.5 w-3.5" /> Confirm Booking
-              </Button>
-            </div>
+          <ScheduleMeetingModalConfirmStep
+            selectedEventTitle={selectedEventInfo?.title}
+            selectedDate={selectedDate}
+            selectedSlotTime={selectedSlotTime}
+            selectedDuration={selectedDuration ?? selectedEventDetail?.length ?? 0}
+            isRecurringEventType={isRecurringEventType}
+            recurringPatternText={recurringPatternText}
+            recurringEventCountText={recurringEventCount ?? recurringMaxCount ?? "-"}
+            contactName={contact?.name}
+            additionalGuests={additionalGuests}
+            bookingErrorMessage={bookingErrorMessage}
+            isSubmitting={isAnyBookingMutationPending}
+            isConfirmDisabled={isAnyBookingMutationPending || Boolean(unsupportedReason)}
+            timeFormat={timeFormat}
+            onBack={() => {
+              setBookingErrorMessage(null);
+              setStep(GUESTS_STEP);
+            }}
+            onConfirm={handleConfirm}
+          />
+        ) : null}
+
+        {selectedEventId !== null && selectedEventQuery.isLoading && step !== EVENT_TYPE_STEP ? (
+          <div className="text-muted-foreground flex items-center gap-2 text-xs">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Loading event details...
           </div>
         ) : null}
       </DialogContent>
