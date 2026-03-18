@@ -66,9 +66,7 @@ export const ScheduleMeetingModalEventTypeStep = ({
               onClick={() => onSelectEventType(eventType.id)}
               className={cn(
                 "w-full rounded-lg border px-4 py-3 text-left transition-colors",
-                selectedEventId === eventType.id
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-muted/50"
+                selectedEventId === eventType.id ? "border-primary bg-muted" : "border-border hover:bg-muted"
               )}>
               <div className="text-sm font-medium">{eventType.title}</div>
               <div className="text-muted-foreground flex items-center gap-1 text-xs">

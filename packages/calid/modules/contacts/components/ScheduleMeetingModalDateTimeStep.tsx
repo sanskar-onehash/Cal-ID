@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@calid/features/ui/comp
 import { ToggleGroup } from "@calid/features/ui/components/toggle-group";
 import { format, isBefore, parseISO, startOfDay } from "date-fns";
 import { ArrowLeft, ArrowRight, CalendarIcon, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { TimeFormat } from "@calcom/lib/timeFormat";
 
@@ -21,7 +22,7 @@ interface ScheduleMeetingModalDateTimeStepProps {
   durationOptions: number[];
   onSelectDuration: (duration: number) => void;
   selectedSlotTime: string | null;
-  onSelectSlotTime: (slotTime: string) => void;
+  onSelectSlotTime: (slotTime: string | null) => void;
   availableSlots: SlotOption[];
   isDurationLoading: boolean;
   durationErrorMessage: string | null;
@@ -79,11 +80,24 @@ export const ScheduleMeetingModalDateTimeStep = ({
   onNext,
   canContinue,
 }: ScheduleMeetingModalDateTimeStepProps) => {
+  const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
+
+  useEffect(() => {
+    if (!selectedSlotTime) {
+      return;
+    }
+
+    const hasSelectedSlot = availableSlots.some((slot) => slot.time === selectedSlotTime);
+    if (!hasSelectedSlot) {
+      onSelectSlotTime(null);
+    }
+  }, [availableSlots, onSelectSlotTime, selectedSlotTime]);
+
   return (
     <div className="space-y-4 pt-2">
       <div className="space-y-1.5">
         <Label>Select Date</Label>
-        <Popover>
+        <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
           <PopoverTrigger asChild>
             <Button
               color="secondary"
@@ -96,7 +110,12 @@ export const ScheduleMeetingModalDateTimeStep = ({
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={onSelectDate}
+              onSelect={(value) => {
+                onSelectDate(value);
+                if (value) {
+                  setIsDatePopoverOpen(false);
+                }
+              }}
               disabled={(date) => isBefore(date, startOfDay(new Date()))}
               className="pointer-events-auto"
             />
@@ -185,8 +204,8 @@ export const ScheduleMeetingModalDateTimeStep = ({
                   className={cn(
                     "rounded-md border px-3 py-2 text-xs transition-colors",
                     selectedSlotTime === slot.time
-                      ? "border-primary bg-primary/5 text-primary font-medium"
-                      : "border-border hover:bg-muted/50"
+                      ? "border-subtle bg-muted text-default font-medium shadow-[0px_2px_3px_0px_rgba(0,0,0,0.03),0px_2px_2px_-1px_rgba(0,0,0,0.03)]"
+                      : "border-border hover:bg-muted hover:text-emphasis"
                   )}>
                   {format(parseISO(slot.time), timeFormat)}
                 </button>

@@ -280,7 +280,7 @@ export const ShareAvailabilityModal = ({ open, onOpenChange, contact }: ShareAva
               rows={4}
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              className="text-sm"
+              className="border-default text-sm shadow"
             />
           </div>
 
@@ -290,7 +290,7 @@ export const ShareAvailabilityModal = ({ open, onOpenChange, contact }: ShareAva
                 key={option.id}
                 onClick={() => handleQuickShare(option.id)}
                 disabled={!shareLink}
-                className="border-border hover:bg-muted/50 disabled:bg-muted/30 disabled:text-muted-foreground rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed">
+                className="border-border hover:bg-muted disabled:bg-muted/30 disabled:text-muted-foreground rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   {option.id === "copy" ? <Copy className="h-3.5 w-3.5" /> : null}
                   {option.id === "email" ? <Mail className="h-3.5 w-3.5" /> : null}

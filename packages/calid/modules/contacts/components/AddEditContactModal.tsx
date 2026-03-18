@@ -163,7 +163,7 @@ export const AddEditContactModal = ({
               value={form.notes}
               onChange={(event) => updateField("notes", event.target.value)}
               placeholder="Add any relevant notes..."
-              className="text-sm"
+              className="border-default text-sm shadow"
             />
           </div>
 

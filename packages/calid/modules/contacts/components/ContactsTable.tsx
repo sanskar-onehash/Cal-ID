@@ -64,7 +64,7 @@ export const ContactsTable = ({
               />
             </TableHead>
             <TableHead>Last Meeting</TableHead>
-            <TableHead className="w-[50px]" />
+            <TableHead>Actions </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -94,11 +94,7 @@ export const ContactsTable = ({
               <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild onClick={(event) => event.stopPropagation()}>
-                    <Button
-                      variant="icon"
-                      color="minimal"
-                      size="sm"
-                      className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Button variant="icon" color="minimal" size="sm" className="h-8 w-8 ">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>

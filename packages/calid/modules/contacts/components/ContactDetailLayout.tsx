@@ -1,4 +1,5 @@
-import { CalendarDays, Clock } from "lucide-react";
+import { cn } from "@calid/features/lib/cn";
+import { Icon } from "@calid/features/ui/components/icon";
 
 import type { Contact, ContactMeeting } from "../types";
 import { ContactNotesCard } from "./ContactNotesCard";
@@ -47,7 +48,7 @@ export const ContactDetailLayout = ({
   deleteErrorMessage,
 }: ContactDetailLayoutProps) => {
   return (
-    <div className={`grid gap-6 ${isMobile ? "grid-cols-1" : "grid-cols-3"}`}>
+    <div className={`grid gap-6 ${isMobile ? "grid-cols-1" : "grid-cols-3 "}`}>
       <div className="space-y-6">
         <ContactProfileCard
           contact={contact}
@@ -69,11 +70,15 @@ export const ContactDetailLayout = ({
         />
       </div>
 
-      <div className={isMobile ? "space-y-6" : "col-span-2 grid gap-6 overflow-hidden"}>
+      <div
+        className={cn(
+          "col-span-2 flex  min-h-0 flex-col gap-6 overflow-hidden ",
+          !isMobile && "max-h-[80vh]"
+        )}>
         <MeetingsSection
           title={
             <>
-              <CalendarDays className="h-4 w-4" /> Upcoming Meetings
+              <Icon name="calendar-days" className="h-4 w-4" /> Upcoming Meetings
             </>
           }
           meetings={upcomingMeetings}
@@ -81,20 +86,20 @@ export const ContactDetailLayout = ({
           countBadge
           isLoading={meetingsLoading}
           errorMessage={meetingsErrorMessage}
-          className={isMobile ? undefined : "min-h-0 overflow-hidden"}
+          className={isMobile ? undefined : "flex flex-1 overflow-hidden"}
         />
 
         <MeetingsSection
           title={
             <>
-              <Clock className="h-4 w-4" /> Meeting History
+              <Icon name="clock" className="h-4 w-4" /> Meeting History
             </>
           }
           meetings={pastMeetings}
           emptyLabel="No meeting history found for this contact"
           isLoading={meetingsLoading}
           errorMessage={meetingsErrorMessage}
-          className={isMobile ? undefined : "min-h-0 overflow-hidden"}
+          className={isMobile ? undefined : "min-h-0 flex-1 overflow-hidden"}
         />
       </div>
     </div>

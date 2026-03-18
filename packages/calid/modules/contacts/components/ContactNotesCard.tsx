@@ -33,7 +33,7 @@ export const ContactNotesCard = ({
           value={notes}
           onChange={(event) => onNotesChange(event.target.value)}
           placeholder="Add notes about this contact..."
-          className="text-sm"
+          className="border-default text-sm"
           disabled={isSaving}
         />
         {saveErrorMessage ? <p className="text-destructive mt-2 text-xs">{saveErrorMessage}</p> : null}
