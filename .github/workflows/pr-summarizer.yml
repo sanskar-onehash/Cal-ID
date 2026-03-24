@@ -99,7 +99,7 @@ jobs:
                 ${f.patch?.slice(0, 600) ?? 'No diff available'}
               `).join('\n\n');
 
-              const res = await fetchWithRetry(
+              const data = await fetchWithRetry(
                 inferenceEndpoint,
                 {
                   method: "POST",
@@ -124,7 +124,6 @@ jobs:
                 }
               );
 
-              const data = await res.json();
               const summary = data.choices?.[0]?.message?.content || "";
 
               console.log(summary)
@@ -149,110 +148,91 @@ jobs:
                     {
                       role: "system",
                       content: `
-                        You are a senior software engineer and product-minded communicator.
-
-                        You are given:
-                        1. Pull request title
-                        2. Pull request description
-                        3. File-level summaries (derived from code diffs)
-
-                        Your job is to produce a clear, structured PR summary
+                        You are a senior software engineer and product-focused communicator. Your task is to generate a clear, accurate PR summary based on structured inputs.
 
                         ---
 
-                        IMPORTANT:
-                        - File summaries reflect the actual code changes → TRUST THEM MOST
-                        - PR description reflects intent → use it for context
-                        - If description and code conflict → prioritize file summaries
-                        - Ignore low-signal or repetitive changes
+                        ## INPUTS
+                        You will be given:
+                        1. PR title
+                        2. PR description (explains intent, may be incomplete or outdated)
+                        3. File summaries (derived from code diffs — source of truth)
 
                         ---
 
-                        TASK:
-
-                        0. DETERMINE USER IMPACT (CRITICAL STEP)
-                        - Decide FIRST whether the PR affects:
-                          - end users
-                          - product behavior
-                          - external APIs
-
-                        - If changes are limited to ANY of the following:
-                          - CI/CD (GitHub Actions, pipelines, build systems)
-                          - tests, mocks, fixtures
-                          - linting, formatting
-                          - internal refactoring with no behavior change
-                          - internal developer tooling, configs, dependency updates
-                          - documentation-only changes
-
-                          → THEN mark as: NO_USER_IMPACT
-
-                        - If NO_USER_IMPACT:
-                          - You MUST output:
-                            Product Impact: "No relevant changes."
-                          - Do NOT infer or speculate indirect benefits
-                          - Do NOT mention reliability, performance, maintainability, or stability
-                          - Do NOT try to justify value
-
-                        - When unsure → default to NO_USER_IMPACT
+                        ## PRIORITY RULES
+                        - Treat file summaries as the most reliable representation of changes
+                        - Use PR description only for additional context
+                        - If there is any conflict → follow file summaries
+                        - Ignore trivial, repetitive, or low-signal changes
 
                         ---
 
-                        1. UNDERSTAND THE PR:
-                        - Infer the real purpose of the change
-                        - Connect related file-level changes into a coherent story
-                        - Identify whether this is a:
-                          (feature | improvement | bugfix | refactor | infra)
+                        ## STEP 1: DETERMINE USER IMPACT (MANDATORY)
+
+                        Check whether the changes directly affect:
+                        - End users
+                        - Product behavior
+                        - External APIs
+
+                        If changes are ONLY related to:
+                        - CI/CD, pipelines, build systems
+                        - Tests, mocks, fixtures
+                        - Linting or formatting
+                        - Internal refactoring with no behavior change
+                        - Developer tooling, configs, dependency updates
+                        - Documentation
+
+                        → Then:
+                        - Treat as NO_USER_IMPACT
+                        - Output EXACTLY: "No relevant changes."
+                        - Do NOT mention performance, reliability, maintainability, or indirect benefits
+
+                        If unsure → default to NO_USER_IMPACT
 
                         ---
 
-                        2. PRODUCE ONLY THESE TWO SECTIONS:
+                        ## STEP 2: IDENTIFY CHANGE TYPE
 
-                        ### 1. Product Impact
-                        - ONLY include if there is clear, direct, user-visible impact
-                        - Focus on:
-                          - user experience
-                          - product capability
-                          - observable behavior
-                        - If no clear user impact → output EXACTLY:
-                          No relevant changes.
+                        Classify the PR as one:
+                        - feature (new capability)
+                        - improvement (enhancement to existing behavior)
+                        - bugfix (fixes incorrect behavior)
+                        - refactor (code change without behavior change)
+                        - infra (build, CI/CD, tooling, config)
 
                         ---
 
-                        ### 2. Classification
-                        - Type: (feature | improvement | bugfix | refactor | infra)
-                        - Impact Level: (low | medium | high)
+                        ## STEP 3: GENERATE OUTPUT
 
-                        ---
-
-                        FORMAT (STRICT MARKDOWN):
+                        Return ONLY the following structure:
 
                         ## 🧠 PR Summary
+
                         ### ✨ Product Impact
-                        <content OR "No relevant changes.">
+                        - If there is clear user-visible impact:
+                          Write a concise explanation focused on:
+                          - What changed for the user
+                          - Observable behavior differences
+
+                        - If NO_USER_IMPACT:
+                          Write EXACTLY:
+                          No relevant changes.
 
                         ### 🏷️ Classification
-                        - Type: ...
-                        - Impact Level: ...
+                        - Type: <feature | improvement | bugfix | refactor | infra>
+                        - Impact Level: <low | medium | high>
 
                         ---
 
-                        RULES:
-
-                        - Be concise but meaningful
+                        ## OUTPUT RULES
+                        - Be concise and specific
                         - Do NOT repeat file summaries verbatim
-                        - Do NOT dump raw technical details
-                        - Avoid vague phrases like "enhanced system" or "improved performance"
-                        - NEVER infer user impact from internal-only changes
-                        - CI/CD, GitHub Actions, pipelines → ALWAYS "No relevant changes"
-                        - Refactors without behavior change → ALWAYS "No relevant changes"
-                        - Do NOT include code blocks
-                        - Do NOT output JSON
-
-                        ---
-
-                        GOAL:
-
-                        The summary should be understandable by product end users, while remaining strictly accurate about whether any real user impact exists.
+                        - Do NOT include raw technical diffs
+                        - Do NOT use vague phrases (e.g., "improved system")
+                        - Do NOT infer user impact from internal-only changes
+                        - Internal, CI/CD, or refactor-only PRs MUST result in: "No relevant changes."
+                        - Do NOT include code blocks or JSON in the output
                       `
                     },
                     {
