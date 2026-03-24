@@ -71,6 +71,7 @@ jobs:
 
                 try {
                   if (res.status === 429) {
+                    console.log(res);
                     throw new Error("Too many requests");
                   }
 
