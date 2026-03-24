@@ -65,7 +65,7 @@ jobs:
             const batchSize = 10;
             const fileSummaries = [];
 
-            function fetchWithRetry(url, options, retries=5) {
+            async function fetchWithRetry(url, options, retries=5) {
               for (let attempt = 0; attempt < retries; attempt++) {
                 const res = await fetch(url, options);
 
