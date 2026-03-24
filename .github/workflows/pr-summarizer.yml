@@ -17,6 +17,10 @@ on:
         required: true
         type: number
 
+concurrency:
+  group: pr-summarizer
+  cancel-in-progress: false
+
 jobs:
   prepareFilesForSummary:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') }}
@@ -61,6 +65,28 @@ jobs:
             const batchSize = 10;
             const fileSummaries = [];
 
+            function fetchWithRetry(url, options, retries=5) {
+              for (let attempt = 0; attempt < retries; attempt++) {
+                const res = await fetch(url, options);
+
+                try {
+                  if (res.status === 429) {
+                    throw new Error("Too many requests");
+                  }
+
+                  return await res.json();
+
+                } catch (err) {
+                  const waitTime = Math.pow(2, attempt) * 8000;
+                  console.log(`Rate limited. Retrying in ${waitTime / 1000}s...`);
+
+                  await new Promise(r => setTimeout(r, waitTime));
+                }
+              }
+
+              throw new Error("Max retries exceeded");
+            }
+
             for (let i = 0; i < files.length; i += batchSize) {
               const batch = files.slice(i, i + batchSize);
 
@@ -71,7 +97,7 @@ jobs:
                 ${f.patch ?? 'No diff available'}
               `).join('\n\n');
 
-              const res = await fetch(
+              const res = await fetchWithRetry(
                 inferenceEndpoint,
                 {
                   method: "POST",
