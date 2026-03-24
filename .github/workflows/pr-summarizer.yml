@@ -30,7 +30,7 @@ jobs:
         id: summarize_pr
         uses: actions/github-script@v8
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_MODEL_TOKEN }}
         with:
           script: |
             let pr;
@@ -79,7 +79,7 @@ jobs:
 
                 } catch (err) {
                   const waitTime = Math.pow(2, attempt) * 8000;
-                  console.log(err);
+                  console.log(res, err);
                   console.log(`Rate limited. Retrying in ${waitTime / 1000}s...`);
 
                   await new Promise(r => setTimeout(r, waitTime));
